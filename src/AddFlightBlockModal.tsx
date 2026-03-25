@@ -32,14 +32,14 @@ export function AddFlightBlockModal({
   const [courseId, setCourseId] = useState("");
   const [days, setDays] = useState<FlightDayOfWeek[]>([0]);
   const [startMin, setStartMin] = useState(9 * 60);
-  const [count, setCount] = useState(1);
+  const [countInput, setCountInput] = useState("1");
 
   useEffect(() => {
     if (!open) return;
     setCourseId(courses[0]?.id ?? "");
     setDays([0]);
     setStartMin(9 * 60);
-    setCount(1);
+    setCountInput("1");
   }, [open, courses]);
 
   useEffect(() => {
@@ -61,9 +61,11 @@ export function AddFlightBlockModal({
     const daySet = [...new Set(days)].filter((d) => d >= 0 && d <= 5) as FlightDayOfWeek[];
     daySet.sort((a, b) => a - b);
     if (daySet.length === 0 || !courseId) return;
+    const parsedCount = Math.floor(Number(countInput));
+    if (!Number.isFinite(parsedCount)) return;
     const n = Math.min(
       MAX_FLIGHT_BLOCKS_BATCH,
-      Math.max(1, Math.floor(count)),
+      Math.max(1, parsedCount),
     );
     onConfirm({
       courseId,
@@ -177,10 +179,8 @@ export function AddFlightBlockModal({
               min={1}
               max={MAX_FLIGHT_BLOCKS_BATCH}
               step={1}
-              value={count}
-              onChange={(e) =>
-                setCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))
-              }
+              value={countInput}
+              onChange={(e) => setCountInput(e.target.value)}
               style={{ width: "6rem" }}
             />
           </div>
@@ -191,7 +191,12 @@ export function AddFlightBlockModal({
             <button
               type="submit"
               className="primary"
-              disabled={courses.length === 0 || days.length === 0}
+              disabled={
+                courses.length === 0 ||
+                days.length === 0 ||
+                countInput.trim() === "" ||
+                !Number.isFinite(Number(countInput))
+              }
             >
               Add to schedule
             </button>

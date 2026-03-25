@@ -5,7 +5,7 @@ import { minutesToLabel } from "./time";
 import { minutesToTimeInputValue, timeInputValueToMinutes } from "./timeInput";
 
 export type AddUnavailabilityPayload = {
-  day: DayOfWeek;
+  days: DayOfWeek[];
   startMin: number;
   endMin: number;
 };
@@ -14,26 +14,26 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onConfirm: (payload: AddUnavailabilityPayload) => void;
-  /** Optional defaults (useful when opening from a specific day). */
-  defaultDay?: DayOfWeek;
+  /** Optional default selected days. */
+  defaultDays?: DayOfWeek[];
 };
 
 export function AddUnavailabilityModal({
   open,
   onClose,
   onConfirm,
-  defaultDay,
+  defaultDays,
 }: Props) {
-  const [day, setDay] = useState<DayOfWeek>(defaultDay ?? 0);
+  const [days, setDays] = useState<DayOfWeek[]>(defaultDays?.length ? defaultDays : [0]);
   const [startMin, setStartMin] = useState(12 * 60);
   const [endMin, setEndMin] = useState(13 * 60);
 
   useEffect(() => {
     if (!open) return;
-    setDay(defaultDay ?? 0);
+    setDays(defaultDays?.length ? defaultDays : [0]);
     setStartMin(12 * 60);
     setEndMin(13 * 60);
-  }, [open, defaultDay]);
+  }, [open, defaultDays]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -56,11 +56,24 @@ export function AddUnavailabilityModal({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    const daySet = [...new Set(days)]
+      .filter((d) => d >= 0 && d <= 6) as DayOfWeek[];
+    daySet.sort((a, b) => a - b);
     const s = Math.max(0, Math.min(24 * 60, Math.floor(startMin)));
     const eMin = Math.max(0, Math.min(24 * 60, Math.floor(endMin)));
-    if (eMin <= s) return;
-    onConfirm({ day, startMin: s, endMin: eMin });
+    if (daySet.length === 0 || eMin <= s) return;
+    onConfirm({ days: daySet, startMin: s, endMin: eMin });
     onClose();
+  };
+
+  const toggleDay = (d: DayOfWeek, checked: boolean) => {
+    setDays((prev) => {
+      const s = new Set(prev);
+      if (checked) s.add(d);
+      else s.delete(d);
+      if (s.size === 0) return prev;
+      return [...s].sort((a, b) => a - b) as DayOfWeek[];
+    });
   };
 
   return (
@@ -77,18 +90,26 @@ export function AddUnavailabilityModal({
         </p>
         <form onSubmit={handleSubmit} className="stack">
           <div>
-            <label htmlFor="aua-day">Day</label>
-            <select
-              id="aua-day"
-              value={day}
-              onChange={(e) => setDay(Number(e.target.value) as DayOfWeek)}
-            >
-              {DAY_LABELS.map((lab, i) => (
-                <option key={lab} value={i}>
-                  {lab}
-                </option>
-              ))}
-            </select>
+            <span className="muted mini">Days</span>
+            <div className="row" style={{ marginTop: "0.35rem", flexWrap: "wrap" }}>
+              {DAY_LABELS.map((lab, i) => {
+                const d = i as DayOfWeek;
+                return (
+                  <label
+                    key={lab}
+                    className="row"
+                    style={{ gap: "0.35rem", cursor: "pointer" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={days.includes(d)}
+                      onChange={(e) => toggleDay(d, e.target.checked)}
+                    />
+                    <span>{lab.slice(0, 3)}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
           <div className="row" style={{ gap: "1rem", alignItems: "flex-end" }}>
             <div>
@@ -122,7 +143,9 @@ export function AddUnavailabilityModal({
             </div>
           </div>
           <div className="muted mini">
-            {display ? `This will mark ${display} unavailable.` : "End must be after start."}
+            {display
+              ? `This will mark ${display} unavailable on ${days.length} day(s).`
+              : "End must be after start."}
           </div>
           <div className="row" style={{ justifyContent: "flex-end", marginTop: "0.5rem" }}>
             <button type="button" className="ghost" onClick={onClose}>

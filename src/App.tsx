@@ -35,7 +35,11 @@ import {
 import { applyBlockEdit, type BlockEditPayload } from "./blockEdit";
 import { BlockEditModal } from "./BlockEditModal";
 import { DayTimeline } from "./DayTimeline";
-import { InstructorWeekTimeline } from "./InstructorWeekTimeline";
+import {
+  ALL_INSTRUCTORS_OPTION,
+  InstructorWeekTimeline,
+  UNASSIGNED_OPTION,
+} from "./InstructorWeekTimeline";
 import { UnavailabilityWeekEditor } from "./UnavailabilityWeekEditor";
 import { BLOCK_DURATION_MIN } from "./constants";
 import {
@@ -410,17 +414,16 @@ export default function App() {
             ...s,
             instructors: s.instructors.map((x) => {
               if (x.id !== targetId) return x;
-              const day = payload.day;
-              const nextDay = mergeTimeWindows([
-                ...(x.unavailabilityByDay[day] ?? []),
-                { startMin: payload.startMin, endMin: payload.endMin },
-              ]);
+              const nextMap = { ...x.unavailabilityByDay };
+              for (const day of payload.days) {
+                nextMap[day] = mergeTimeWindows([
+                  ...(x.unavailabilityByDay[day] ?? []),
+                  { startMin: payload.startMin, endMin: payload.endMin },
+                ]);
+              }
               return {
                 ...x,
-                unavailabilityByDay: {
-                  ...x.unavailabilityByDay,
-                  [day]: nextDay,
-                },
+                unavailabilityByDay: nextMap,
               };
             }),
           }));
@@ -844,7 +847,7 @@ function ScheduleTab({
 }) {
   const [timelineDay, setTimelineDay] = useState<FlightDayOfWeek>(0);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [weekInstructorId, setWeekInstructorId] = useState("");
+  const [weekInstructorId, setWeekInstructorId] = useState(ALL_INSTRUCTORS_OPTION);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
 
   const rowsForManual = ensureAssignmentsForBlocks(
@@ -888,16 +891,17 @@ function ScheduleTab({
       setWeekInstructorId("");
       return;
     }
-    setWeekInstructorId((prev) =>
-      prev && state.instructors.some((i) => i.id === prev) ? prev : first,
-    );
+    setWeekInstructorId((prev) => {
+      if (!prev) return ALL_INSTRUCTORS_OPTION;
+      if (prev === ALL_INSTRUCTORS_OPTION || prev === UNASSIGNED_OPTION) return prev;
+      return state.instructors.some((i) => i.id === prev)
+        ? prev
+        : ALL_INSTRUCTORS_OPTION;
+    });
   }, [state.instructors]);
 
   const { total: slotCount, assigned: assignedCount, unassigned: unassignedCount } =
     baseBlockAssignmentSummary(state.blocks, rowsForManual);
-
-  const filterByInstructor =
-    state.instructors.length > 0 && weekInstructorId !== "";
 
   return (
     <div className="stack">
@@ -1034,9 +1038,10 @@ function ScheduleTab({
       <section className="panel">
         <h2>Instructor week</h2>
         <InstructorWeekTimeline
-          filterByInstructor={filterByInstructor}
           selectedInstructorId={
-            state.instructors.length > 0 ? weekInstructorId : ""
+            state.instructors.length > 0
+              ? weekInstructorId || ALL_INSTRUCTORS_OPTION
+              : ""
           }
           onInstructorChange={setWeekInstructorId}
           instructors={state.instructors}

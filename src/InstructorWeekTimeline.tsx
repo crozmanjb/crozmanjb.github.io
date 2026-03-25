@@ -16,14 +16,11 @@ const VIEW_START_MIN = 5 * 60;
 const VIEW_END_MIN = 23 * 60;
 const VIEW_SPAN = VIEW_END_MIN - VIEW_START_MIN;
 
-type BlockRole = "mine" | "other" | "unassigned";
+export const ALL_INSTRUCTORS_OPTION = "__ALL__";
+export const UNASSIGNED_OPTION = "__UNASSIGNED__";
+type WeekViewMode = "single" | "all" | "unassigned";
 
 type Props = {
-  /**
-   * When true, highlight blocks for `selectedInstructorId` and dim others.
-   * When false, show every block at full strength and always show assigned instructor on the block.
-   */
-  filterByInstructor: boolean;
   selectedInstructorId: string;
   onInstructorChange: (id: string) => void;
   instructors: Instructor[];
@@ -37,37 +34,7 @@ function courseName(courseId: string, courses: Course[]): string {
   return courses.find((c) => c.id === courseId)?.name ?? courseId;
 }
 
-function instructorName(
-  instructorId: string | null,
-  instructors: Instructor[],
-): string {
-  if (!instructorId) return "Unassigned";
-  return instructors.find((i) => i.id === instructorId)?.name ?? "—";
-}
-
-function blockRole(
-  assignedId: string | null,
-  selectedInstructorId: string,
-): BlockRole {
-  if (!assignedId) return "unassigned";
-  if (assignedId === selectedInstructorId) return "mine";
-  return "other";
-}
-
-function effectiveRole(
-  assignedId: string | null,
-  selectedInstructorId: string,
-  filterByInstructor: boolean,
-): BlockRole {
-  if (!filterByInstructor) {
-    if (!assignedId) return "unassigned";
-    return "mine";
-  }
-  return blockRole(assignedId, selectedInstructorId);
-}
-
 export function InstructorWeekTimeline({
-  filterByInstructor,
   selectedInstructorId,
   onInstructorChange,
   instructors,
@@ -81,31 +48,60 @@ export function InstructorWeekTimeline({
     [assignments],
   );
 
-  const selectedIns = useMemo(
-    () => instructors.find((i) => i.id === selectedInstructorId),
-    [instructors, selectedInstructorId],
-  );
+  const mode: WeekViewMode =
+    selectedInstructorId === ALL_INSTRUCTORS_OPTION
+      ? "all"
+      : selectedInstructorId === UNASSIGNED_OPTION
+        ? "unassigned"
+        : "single";
+
+  const selectedIns = useMemo(() => {
+    if (mode !== "single") return null;
+    return instructors.find((i) => i.id === selectedInstructorId) ?? null;
+  }, [instructors, selectedInstructorId, mode]);
 
   const assignedStudentSlotCount = useMemo(() => {
-    if (!filterByInstructor) return 0;
+    if (!selectedIns) return 0;
     const bases = new Set<string>();
     for (const occ of blocks) {
-      if (assignmentByBlock.get(occ.id) !== selectedInstructorId) continue;
+      if (assignmentByBlock.get(occ.id) !== selectedIns.id) continue;
       bases.add(occ.baseBlockId);
     }
     return bases.size;
-  }, [blocks, assignmentByBlock, selectedInstructorId, filterByInstructor]);
+  }, [blocks, assignmentByBlock, selectedIns]);
 
   const blocksByDay = useMemo(() => {
     const out: FlightBlockOccurrence[][] = [[], [], [], [], [], []];
-    for (const b of blocks) {
-      out[b.day]!.push(b);
-    }
-    for (const d of out) {
-      d.sort((a, c) => a.startMin - c.startMin);
-    }
+    for (const b of blocks) out[b.day]!.push(b);
+    for (const d of out) d.sort((a, c) => a.startMin - c.startMin);
     return out;
   }, [blocks]);
+
+  const blocksByInstructorDay = useMemo(() => {
+    const out = new Map<string, FlightBlockOccurrence[][]>();
+    for (const ins of instructors) out.set(ins.id, [[], [], [], [], [], []]);
+    for (const b of blocks) {
+      const insId = assignmentByBlock.get(b.id) ?? null;
+      if (!insId) continue;
+      const byDay = out.get(insId);
+      if (byDay) byDay[b.day]!.push(b);
+    }
+    for (const byDay of out.values()) {
+      for (const d of byDay) d.sort((a, c) => a.startMin - c.startMin);
+    }
+    return out;
+  }, [instructors, blocks, assignmentByBlock]);
+
+  /** Unassigned occurrences per flight day (Mon–Sat) for the all-instructors grid row. */
+  const unassignedByDay = useMemo(() => {
+    const out: FlightBlockOccurrence[][] = [[], [], [], [], [], []];
+    for (const b of blocks) {
+      if (assignmentByBlock.get(b.id) != null) continue;
+      out[b.day]!.push(b);
+    }
+    for (const d of out) d.sort((a, c) => a.startMin - c.startMin);
+    return out;
+  }, [blocks, assignmentByBlock]);
 
   const hourTicks = useMemo(() => {
     const ticks: number[] = [];
@@ -113,35 +109,37 @@ export function InstructorWeekTimeline({
     return ticks;
   }, []);
 
-  const showInstructorPicker = instructors.length > 0;
+  if (instructors.length === 0) {
+    return (
+      <div className="week-timeline">
+        <p className="muted mini">
+          Add instructors in Setup to use this view.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="week-timeline">
       <div className="week-timeline-head">
-        {showInstructorPicker ? (
-          <>
-            <label className="muted mini" htmlFor="week-ins">
-              Instructor
-            </label>
-            <select
-              id="week-ins"
-              value={selectedInstructorId}
-              onChange={(e) => onInstructorChange(e.target.value)}
-            >
-              {instructors.map((ins) => (
-                <option key={ins.id} value={ins.id}>
-                  {ins.name}
-                </option>
-              ))}
-            </select>
-          </>
-        ) : (
-          <span className="muted mini">
-            Add instructors in Setup to filter this view by instructor and see
-            load limits.
-          </span>
-        )}
-        {filterByInstructor && selectedIns && (
+        <label className="muted mini" htmlFor="week-ins">
+          View
+        </label>
+        <select
+          id="week-ins"
+          value={selectedInstructorId}
+          onChange={(e) => onInstructorChange(e.target.value)}
+        >
+          <option value={ALL_INSTRUCTORS_OPTION}>All instructors (week grid)</option>
+          <option value={UNASSIGNED_OPTION}>Unassigned blocks only</option>
+          {instructors.map((ins) => (
+            <option key={ins.id} value={ins.id}>
+              {ins.name} only
+            </option>
+          ))}
+        </select>
+
+        {mode === "single" && selectedIns && (
           <div className="week-timeline-stats">
             <span className="week-stat week-stat-students">
               <span className="muted mini">Students</span>{" "}
@@ -159,149 +157,205 @@ export function InstructorWeekTimeline({
           </div>
         )}
         <span className="muted mini">
-          Week view · {minutesToLabel(VIEW_START_MIN)}–{minutesToLabel(VIEW_END_MIN)}
+          Week view - {minutesToLabel(VIEW_START_MIN)}-{minutesToLabel(VIEW_END_MIN)}
         </span>
       </div>
 
-      <div className="week-timeline-scroll">
-        <div className="week-timeline-grid">
-          <div className="week-corner" style={{ gridColumn: 1, gridRow: 1 }} aria-hidden />
-          {FLIGHT_DAY_LABELS.map((label, i) => (
-            <div
-              key={label}
-              className="week-day-label"
-              style={{ gridColumn: i + 2, gridRow: 1 }}
-            >
-              {label.slice(0, 3)}
-            </div>
-          ))}
-          <div className="week-ruler" style={{ gridColumn: 1, gridRow: 2 }}>
-            {hourTicks.map((m) => (
+      {mode !== "all" ? (
+        <div className="week-timeline-scroll">
+          <div className="week-timeline-grid">
+            <div className="week-corner" style={{ gridColumn: 1, gridRow: 1 }} aria-hidden />
+            {FLIGHT_DAY_LABELS.map((label, i) => (
               <div
-                key={m}
-                className="day-timeline-ruler-tick"
-                style={{
-                  top: `${((m - VIEW_START_MIN) / VIEW_SPAN) * 100}%`,
-                }}
+                key={label}
+                className="week-day-label"
+                style={{ gridColumn: i + 2, gridRow: 1 }}
               >
-                {minutesToLabel(m)}
+                {label.slice(0, 3)}
               </div>
             ))}
-          </div>
-          {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
-            const dayBlocks = blocksByDay[day] ?? [];
-            const { laneByBlockId, laneCount } =
-              assignLanesGroupedByCourse(dayBlocks);
-            const laneW = 100 / laneCount;
-            const sortedForRender = [...dayBlocks].sort((a, b) => {
-              if (filterByInstructor) {
-                const ra = effectiveRole(
-                  assignmentByBlock.get(a.id) ?? null,
-                  selectedInstructorId,
-                  true,
-                );
-                const rb = effectiveRole(
-                  assignmentByBlock.get(b.id) ?? null,
-                  selectedInstructorId,
-                  true,
-                );
-                const pa = ra === "mine" ? 1 : 0;
-                const pb = rb === "mine" ? 1 : 0;
-                if (pa !== pb) return pa - pb;
-              }
-              return a.startMin - b.startMin || a.id.localeCompare(b.id);
-            });
-
-            return (
-              <div
-                key={day}
-                className="week-day-chart"
-                style={{ gridColumn: day + 2, gridRow: 2 }}
-              >
-                {hourTicks.map((m) => (
-                  <div
-                    key={`g-${day}-${m}`}
-                    className="day-timeline-gridline"
-                    style={{
-                      top: `${((m - VIEW_START_MIN) / VIEW_SPAN) * 100}%`,
-                    }}
-                  />
-                ))}
-                {sortedForRender.map((b) => {
-                  const insId = assignmentByBlock.get(b.id) ?? null;
-                  const role = effectiveRole(
-                    insId,
-                    selectedInstructorId,
-                    filterByInstructor,
-                  );
-                  const lane = laneByBlockId.get(b.id) ?? 0;
-                  const left = lane * laneW;
-                  const top = Math.max(
-                    0,
-                    ((b.startMin - VIEW_START_MIN) / VIEW_SPAN) * 100,
-                  );
-                  const rawH = (BLOCK_DURATION_MIN / VIEW_SPAN) * 100;
-                  const h = Math.min(Math.max(rawH, 2.5), 100 - top);
-                  const ci = courses.findIndex((c) => c.id === b.courseId);
-                  const course = courses[ci];
-                  const bg = blockGradientFromHex(
-                    courseColorOrDefault(course, Math.max(0, ci)),
-                  );
-
-                  const roleClass =
-                    role === "mine"
-                      ? "week-timeline-block-mine"
-                      : role === "other"
-                        ? "week-timeline-block-other"
-                        : "week-timeline-block-setup timeline-block-unassigned";
-
-                  const titleText = b.label.trim() || "—";
-                  const showInsRow =
-                    !filterByInstructor || role !== "mine";
-
-                  return (
-                    <button
-                      key={b.id}
-                      type="button"
-                      className={`timeline-block week-timeline-block ${roleClass}`}
-                      style={{
-                        left: `calc(${left}% + 2px)`,
-                        width: `calc(${laneW}% - 4px)`,
-                        top: `${top}%`,
-                        height: `${h}%`,
-                        background: bg,
-                        zIndex: role === "mine" ? 4 : role === "other" ? 2 : 1,
-                      }}
-                      onClick={() => onBlockClick(b.id)}
-                    >
-                      <span className="timeline-block-time">
-                        {minutesToLabel(b.startMin)}–{minutesToLabel(b.endMin)}
-                      </span>
-                      <span
-                        className={`timeline-block-title ${!b.label.trim() ? "timeline-block-title-placeholder" : ""}`}
+            <div className="week-ruler" style={{ gridColumn: 1, gridRow: 2 }}>
+              {hourTicks.map((m) => (
+                <div
+                  key={m}
+                  className="day-timeline-ruler-tick"
+                  style={{ top: `${((m - VIEW_START_MIN) / VIEW_SPAN) * 100}%` }}
+                >
+                  {minutesToLabel(m)}
+                </div>
+              ))}
+            </div>
+            {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
+              const source = blocksByDay[day] ?? [];
+              const dayBlocks = source.filter((b) => {
+                const insId = assignmentByBlock.get(b.id) ?? null;
+                if (mode === "unassigned") return insId === null;
+                return insId === selectedInstructorId;
+              });
+              const { laneByBlockId, laneCount } = assignLanesGroupedByCourse(dayBlocks);
+              const laneW = 100 / laneCount;
+              return (
+                <div key={day} className="week-day-chart" style={{ gridColumn: day + 2, gridRow: 2 }}>
+                  {hourTicks.map((m) => (
+                    <div
+                      key={`g-${day}-${m}`}
+                      className="day-timeline-gridline"
+                      style={{ top: `${((m - VIEW_START_MIN) / VIEW_SPAN) * 100}%` }}
+                    />
+                  ))}
+                  {dayBlocks.map((b) => {
+                    const lane = laneByBlockId.get(b.id) ?? 0;
+                    const left = lane * laneW;
+                    const top = Math.max(0, ((b.startMin - VIEW_START_MIN) / VIEW_SPAN) * 100);
+                    const rawH = (BLOCK_DURATION_MIN / VIEW_SPAN) * 100;
+                    const h = Math.min(Math.max(rawH, 2.5), 100 - top);
+                    const ci = courses.findIndex((c) => c.id === b.courseId);
+                    const course = courses[ci];
+                    const bg = blockGradientFromHex(
+                      courseColorOrDefault(course, Math.max(0, ci)),
+                    );
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className={`timeline-block week-timeline-block ${mode === "unassigned" ? "week-timeline-block-setup timeline-block-unassigned" : "week-timeline-block-mine"}`}
+                        style={{
+                          left: `calc(${left}% + 2px)`,
+                          width: `calc(${laneW}% - 4px)`,
+                          top: `${top}%`,
+                          height: `${h}%`,
+                          background: bg,
+                          zIndex: 3,
+                        }}
+                        onClick={() => onBlockClick(b.id)}
                       >
-                        {titleText}
-                      </span>
-                      <span className="timeline-block-course">
-                        {courseName(b.courseId, courses)}
-                      </span>
-                      {showInsRow && (
-                        <span className="timeline-block-ins">
-                          {instructorName(insId, instructors)}
+                        <span className="timeline-block-time">
+                          {minutesToLabel(b.startMin)}-{minutesToLabel(b.endMin)}
                         </span>
+                        <span
+                          className={`timeline-block-title ${!b.label.trim() ? "timeline-block-title-placeholder" : ""}`}
+                        >
+                          {b.label.trim() || "-"}
+                        </span>
+                        <span className="timeline-block-course">
+                          {courseName(b.courseId, courses)}
+                        </span>
+                        {mode === "unassigned" && (
+                          <span className="timeline-block-ins">Unassigned</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="week-all-grid-scroll">
+          <div className="week-all-grid">
+            <div className="week-all-corner" />
+            {FLIGHT_DAY_LABELS.map((label) => (
+              <div key={label} className="week-all-day-head">
+                {label.slice(0, 3)}
+              </div>
+            ))}
+            <div className="week-all-row">
+              <div className="week-all-ins-name week-all-ins-unassigned">Unassigned</div>
+              {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
+                const dayBlocks = unassignedByDay[day] ?? [];
+                return (
+                  <div key={`un-${day}`} className="week-all-cell week-all-cell-list">
+                    {dayBlocks.length === 0 ? (
+                      <span className="week-all-empty muted mini">—</span>
+                    ) : (
+                      dayBlocks.map((b) => {
+                        const ci = courses.findIndex((c) => c.id === b.courseId);
+                        const course = courses[ci];
+                        const bg = blockGradientFromHex(
+                          courseColorOrDefault(course, Math.max(0, ci)),
+                        );
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            className="week-all-chip timeline-block-unassigned"
+                            style={{ background: bg }}
+                            onClick={() => onBlockClick(b.id)}
+                          >
+                            <span className="week-all-chip-time">
+                              {minutesToLabel(b.startMin)}–{minutesToLabel(b.endMin)}
+                            </span>
+                            <span
+                              className={`week-all-chip-title ${!b.label.trim() ? "timeline-block-title-placeholder" : ""}`}
+                            >
+                              {b.label.trim() || "—"}
+                            </span>
+                            <span className="week-all-chip-course">
+                              {courseName(b.courseId, courses)}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {instructors.map((ins) => (
+              <div key={ins.id} className="week-all-row">
+                <div className="week-all-ins-name">{ins.name}</div>
+                {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
+                  const dayBlocks = blocksByInstructorDay.get(ins.id)?.[day] ?? [];
+                  return (
+                    <div key={`${ins.id}-${day}`} className="week-all-cell week-all-cell-list">
+                      {dayBlocks.length === 0 ? (
+                        <span className="week-all-empty muted mini">—</span>
+                      ) : (
+                        dayBlocks.map((b) => {
+                          const ci = courses.findIndex((c) => c.id === b.courseId);
+                          const course = courses[ci];
+                          const bg = blockGradientFromHex(
+                            courseColorOrDefault(course, Math.max(0, ci)),
+                          );
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              className="week-all-chip"
+                              style={{ background: bg }}
+                              onClick={() => onBlockClick(b.id)}
+                            >
+                              <span className="week-all-chip-time">
+                                {minutesToLabel(b.startMin)}–{minutesToLabel(b.endMin)}
+                              </span>
+                              <span
+                                className={`week-all-chip-title ${!b.label.trim() ? "timeline-block-title-placeholder" : ""}`}
+                              >
+                                {b.label.trim() || "—"}
+                              </span>
+                              <span className="week-all-chip-course">
+                                {courseName(b.courseId, courses)}
+                              </span>
+                            </button>
+                          );
+                        })
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
       <p className="hint" style={{ marginTop: "0.5rem", marginBottom: 0 }}>
-        {filterByInstructor
-          ? "Each flight block is one student slot. Yours are full strength; others are dimmed. Dashed blocks are unassigned. Click a block to edit or remove it."
-          : "Each flight block is one student slot. Click a block to edit course, days, time, name, or instructor. Use Add flight block in the Day view section to create more."}
+        {mode === "single"
+          ? "Showing only this instructor's assigned blocks."
+          : mode === "unassigned"
+            ? "Showing only unassigned blocks."
+            : "All instructors at once: each cell is a compact list of blocks (height fits content). Unassigned blocks are in the first row."}
       </p>
     </div>
   );
