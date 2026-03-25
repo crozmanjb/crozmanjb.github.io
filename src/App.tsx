@@ -6,12 +6,7 @@ import {
   useState,
 } from "react";
 import { defaultCourseColor } from "./courseColors";
-import {
-  demoBlocks,
-  demoCourses,
-  demoInstructors,
-  emptyUnavailability,
-} from "./defaultData";
+import { defaultCourses, emptyUnavailability } from "./defaultData";
 import {
   exportStateJson,
   importStateJson,
@@ -231,21 +226,6 @@ export default function App() {
     reader.readAsText(file);
   }, []);
 
-  const resetDemo = useCallback(() => {
-    if (!confirm("Replace all data with the built-in demo?")) return;
-    const courses = demoCourses();
-    setState({
-      courses,
-      instructors: demoInstructors(courses),
-      blocks: demoBlocks(courses),
-      assignments: null,
-      solveWarnings: null,
-      scheduleStale: false,
-      undoSchedule: null,
-      scheduleChangeLog: null,
-    });
-  }, []);
-
   const addFlightBlocks = useCallback(
     (payload: AddFlightBlocksPayload) => {
       setSetup((s) => {
@@ -281,13 +261,13 @@ export default function App() {
   );
 
   const clearSaved = useCallback(() => {
-    if (!confirm("Clear saved browser data and reload the demo?")) return;
+    if (!confirm("Clear saved browser data and reset to the default course list?")) return;
     localStorage.removeItem("flight-scheduler-v1");
-    const courses = demoCourses();
+    const courses = defaultCourses();
     setState({
       courses,
-      instructors: demoInstructors(courses),
-      blocks: demoBlocks(courses),
+      instructors: [],
+      blocks: [],
       assignments: null,
       solveWarnings: null,
       scheduleStale: false,
@@ -358,9 +338,6 @@ export default function App() {
                   onClick={() => importJsonInputRef.current?.click()}
                 >
                   Import JSON
-                </button>
-                <button type="button" onClick={resetDemo}>
-                  Load demo
                 </button>
                 <button type="button" className="danger" onClick={clearSaved}>
                   Reset saved data

@@ -1,10 +1,6 @@
 import { normalizeScheduleState } from "./normalize";
 import type { ScheduleState } from "./types";
-import {
-  demoBlocks,
-  demoCourses,
-  demoInstructors,
-} from "./defaultData";
+import { defaultCourses } from "./defaultData";
 
 const STORAGE_KEY = "flight-scheduler-v1";
 
@@ -37,11 +33,11 @@ export function loadState(): ScheduleState {
   } catch {
     /* ignore */
   }
-  const courses = demoCourses();
+  const courses = defaultCourses();
   return normalizeScheduleState({
     courses,
-    instructors: demoInstructors(courses),
-    blocks: demoBlocks(courses),
+    instructors: [],
+    blocks: [],
     assignments: null,
     solveWarnings: null,
     scheduleStale: false,
