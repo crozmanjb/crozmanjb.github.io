@@ -61,6 +61,12 @@ export type Instructor = {
    * (multiple weekdays) still counts as one block.
    */
   maxBlockCount: number;
+  /**
+   * Optional per-course weekly cap (distinct base blocks) for this instructor.
+   * Example: limit an instructor to 3 Instrument students per week.
+   * Omitted/empty = unlimited for that course.
+   */
+  maxBlocksByCourseId?: Record<string, number>;
 };
 
 export type FlightBlock = {

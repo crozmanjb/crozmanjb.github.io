@@ -67,6 +67,22 @@ export function validateBlockAssignment(
     return `Would exceed this instructor’s weekly maximum (${ins.maxBlockCount} base blocks).`;
   }
 
+  const perCourseMax = ins.maxBlocksByCourseId?.[block.courseId];
+  if (perCourseMax && perCourseMax > 0) {
+    const baseIdsForCourse = new Set<string>();
+    for (const a of assignmentsAfter) {
+      if (a.instructorId !== instructorId) continue;
+      if (!occIds.has(a.blockId)) continue;
+      const other = occurrences.find((o) => o.id === a.blockId);
+      if (!other) continue;
+      if (other.courseId !== block.courseId) continue;
+      baseIdsForCourse.add(other.baseBlockId);
+    }
+    if (baseIdsForCourse.size > perCourseMax) {
+      return `Would exceed this instructor’s weekly maximum for this course (${perCourseMax}).`;
+    }
+  }
+
   return null;
 }
 

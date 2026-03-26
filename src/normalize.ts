@@ -92,6 +92,7 @@ export type InstructorLike = Partial<Instructor> & {
   preferredCourseIds?: string[];
   availabilityByDay?: Record<DayOfWeek, TimeWindow[]>;
   unavailabilityByDay?: Record<DayOfWeek, TimeWindow[]>;
+  maxBlocksByCourseId?: Record<string, unknown>;
 };
 
 export function normalizeInstructor(raw: InstructorLike): Instructor {
@@ -128,6 +129,16 @@ export function normalizeInstructor(raw: InstructorLike): Instructor {
     : [];
   const preferredCourseIds = preferredRaw.filter((id) => qual.includes(id));
 
+  const maxBlocksByCourseId: Record<string, number> = {};
+  if (raw.maxBlocksByCourseId && typeof raw.maxBlocksByCourseId === "object") {
+    for (const [courseId, v] of Object.entries(raw.maxBlocksByCourseId)) {
+      const n = typeof v === "number" ? v : Number(v);
+      if (!Number.isFinite(n)) continue;
+      const i = Math.max(0, Math.floor(n));
+      if (i > 0) maxBlocksByCourseId[courseId] = i;
+    }
+  }
+
   return {
     id: raw.id,
     name: raw.name,
@@ -136,6 +147,7 @@ export function normalizeInstructor(raw: InstructorLike): Instructor {
     unavailabilityByDay,
     maxBlockCount: max,
     preferredBlockCount: preferred,
+    maxBlocksByCourseId,
   };
 }
 

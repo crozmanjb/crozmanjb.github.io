@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { blockGradientFromHex, courseColorOrDefault } from "./courseColors";
 import { assignLanesGroupedByCourse } from "./scheduleLanes";
 import {
@@ -17,7 +17,8 @@ const VIEW_SPAN = VIEW_END_MIN - VIEW_START_MIN;
 
 export const ALL_INSTRUCTORS_OPTION = "__ALL__";
 export const UNASSIGNED_OPTION = "__UNASSIGNED__";
-type WeekViewMode = "single" | "all" | "unassigned";
+export const MULTI_OPTION = "__MULTI__";
+type WeekViewMode = "single" | "all" | "unassigned" | "multi";
 
 type Props = {
   selectedInstructorId: string;
@@ -27,6 +28,7 @@ type Props = {
   assignments: Assignment[];
   courses: Course[];
   onBlockClick: (blockId: string) => void;
+  onClearInstructor?: (instructorId: string) => void;
 };
 
 function courseName(courseId: string, courses: Course[]): string {
@@ -41,6 +43,7 @@ export function InstructorWeekTimeline({
   assignments,
   courses,
   onBlockClick,
+  onClearInstructor,
 }: Props) {
   const assignmentByBlock = useMemo(
     () => new Map(assignments.map((a) => [a.blockId, a.instructorId] as const)),
@@ -52,6 +55,8 @@ export function InstructorWeekTimeline({
       ? "all"
       : selectedInstructorId === UNASSIGNED_OPTION
         ? "unassigned"
+        : selectedInstructorId === MULTI_OPTION
+          ? "multi"
         : "single";
 
   const selectedIns = useMemo(() => {
@@ -108,6 +113,18 @@ export function InstructorWeekTimeline({
     return ticks;
   }, []);
 
+  // multi selection is kept local to this component
+  const [multiIds, setMultiIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (mode !== "multi") return;
+    setMultiIds((prev) => {
+      const valid = prev.filter((id) => instructors.some((i) => i.id === id));
+      if (valid.length > 0) return valid;
+      return instructors.slice(0, 2).map((i) => i.id);
+    });
+  }, [mode, instructors]);
+
   if (instructors.length === 0) {
     return (
       <div className="week-timeline">
@@ -131,12 +148,76 @@ export function InstructorWeekTimeline({
         >
           <option value={ALL_INSTRUCTORS_OPTION}>All instructors (week grid)</option>
           <option value={UNASSIGNED_OPTION}>Unassigned blocks only</option>
+          <option value={MULTI_OPTION}>Multiple instructors (overlay)</option>
           {instructors.map((ins) => (
             <option key={ins.id} value={ins.id}>
               {ins.name} only
             </option>
           ))}
         </select>
+
+        {mode === "multi" && (
+          <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+            {instructors.map((ins, idx) => {
+              const checked = multiIds.includes(ins.id);
+              const hue = (idx * 47) % 360;
+              return (
+                <label
+                  key={ins.id}
+                  className="row muted mini"
+                  style={{ gap: "0.35rem", cursor: "pointer" }}
+                  title="Show this instructor in overlay"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setMultiIds((prev) => {
+                        const s = new Set(prev);
+                        if (on) s.add(ins.id);
+                        else s.delete(ins.id);
+                        return [...s];
+                      });
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 99,
+                      background: `hsl(${hue} 75% 55%)`,
+                      display: "inline-block",
+                    }}
+                  />
+                  <span>{ins.name}</span>
+                  {onClearInstructor && checked && (
+                    <button
+                      type="button"
+                      className="ghost mini"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onClearInstructor(ins.id);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        )}
+
+        {mode === "single" && selectedIns && onClearInstructor && (
+          <button
+            type="button"
+            className="ghost mini"
+            onClick={() => onClearInstructor(selectedIns.id)}
+          >
+            Clear this instructor
+          </button>
+        )}
 
         {mode === "single" && selectedIns && (
           <div className="week-timeline-stats">
@@ -189,7 +270,10 @@ export function InstructorWeekTimeline({
               const dayBlocks = source.filter((b) => {
                 const insId = assignmentByBlock.get(b.id) ?? null;
                 if (mode === "unassigned") return insId === null;
-                return insId === selectedInstructorId;
+                // single: always show unassigned + this instructor
+                if (mode === "single") return insId === null || insId === selectedInstructorId;
+                if (mode === "multi") return insId === null || multiIds.includes(insId);
+                return insId === null;
               });
               const { laneByBlockId, laneCount } = assignLanesGroupedByCourse(dayBlocks);
               const laneW = 100 / laneCount;
@@ -208,6 +292,10 @@ export function InstructorWeekTimeline({
                     const top = Math.max(0, ((b.startMin - VIEW_START_MIN) / VIEW_SPAN) * 100);
                     const rawH = ((b.endMin - b.startMin) / VIEW_SPAN) * 100;
                     const h = Math.min(Math.max(rawH, 2.5), 100 - top);
+                    const insId = assignmentByBlock.get(b.id) ?? null;
+                    const insIdx =
+                      insId === null ? -1 : instructors.findIndex((i) => i.id === insId);
+                    const hue = insIdx >= 0 ? (insIdx * 47) % 360 : 0;
                     const ci = courses.findIndex((c) => c.id === b.courseId);
                     const course = courses[ci];
                     const bg = blockGradientFromHex(
@@ -217,13 +305,19 @@ export function InstructorWeekTimeline({
                       <button
                         key={b.id}
                         type="button"
-                        className={`timeline-block week-timeline-block ${mode === "unassigned" ? "week-timeline-block-setup timeline-block-unassigned" : "week-timeline-block-mine"}`}
+                        className={`timeline-block week-timeline-block ${insId === null ? "week-timeline-block-setup timeline-block-unassigned" : "week-timeline-block-mine"}`}
                         style={{
                           left: `calc(${left}% + 2px)`,
                           width: `calc(${laneW}% - 4px)`,
                           top: `${top}%`,
                           height: `${h}%`,
                           background: bg,
+                          outline:
+                            mode === "multi" && insId !== null
+                              ? `2px solid hsl(${hue} 75% 55%)`
+                              : undefined,
+                          outlineOffset:
+                            mode === "multi" && insId !== null ? "-2px" : undefined,
                           zIndex: 3,
                         }}
                         onClick={() => onBlockClick(b.id)}
@@ -239,9 +333,7 @@ export function InstructorWeekTimeline({
                         <span className="timeline-block-course">
                           {courseName(b.courseId, courses)}
                         </span>
-                        {mode === "unassigned" && (
-                          <span className="timeline-block-ins">Unassigned</span>
-                        )}
+                        {insId === null && <span className="timeline-block-ins">Unassigned</span>}
                       </button>
                     );
                   })}
@@ -351,9 +443,11 @@ export function InstructorWeekTimeline({
 
       <p className="hint" style={{ marginTop: "0.5rem", marginBottom: 0 }}>
         {mode === "single"
-          ? "Showing only this instructor's assigned blocks."
+          ? "Showing this instructor’s blocks plus any unassigned blocks (grayed)."
           : mode === "unassigned"
             ? "Showing only unassigned blocks."
+            : mode === "multi"
+              ? "Showing selected instructors’ blocks together (colored outlines) plus any unassigned blocks (grayed)."
             : "All instructors at once: each cell is a compact list of blocks (height fits content). Unassigned blocks are in the first row."}
       </p>
     </div>

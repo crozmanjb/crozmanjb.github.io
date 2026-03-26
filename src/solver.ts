@@ -22,6 +22,7 @@ const PREFERRED_COURSE_WEIGHT = 92;
 const MIN_FULL_DAYS_OFF = 2;
 const MAX_DISTINCT_WORK_DAYS = 7 - MIN_FULL_DAYS_OFF;
 const EXTRA_WORK_DAY_WEIGHT = 320;
+const COURSE_BALANCE_WEIGHT = 55;
 
 function blockAllowedByUnavailability(
   block: FlightBlockOccurrence,
@@ -50,6 +51,30 @@ function cannotAddOccurrenceDueToMax(
   const bases = new Set(existing.map((b) => b.baseBlockId));
   if (bases.has(block.baseBlockId)) return false;
   return bases.size >= maxBaseBlocks;
+}
+
+function countDistinctBaseBlocksForCourse(
+  existing: FlightBlockOccurrence[],
+  courseId: string,
+): number {
+  const s = new Set<string>();
+  for (const b of existing) {
+    if (b.courseId !== courseId) continue;
+    s.add(b.baseBlockId);
+  }
+  return s.size;
+}
+
+function wouldExceedPerCourseMax(
+  ins: Instructor,
+  existing: FlightBlockOccurrence[],
+  block: FlightBlockOccurrence,
+): boolean {
+  const cap = ins.maxBlocksByCourseId?.[block.courseId];
+  if (!cap || cap <= 0) return false;
+  const bases = new Set(existing.map((b) => b.baseBlockId));
+  if (bases.has(block.baseBlockId)) return false;
+  return countDistinctBaseBlocksForCourse(existing, block.courseId) >= cap;
 }
 
 function instructorEligibleForBlock(
@@ -324,6 +349,9 @@ function tryAddBlockToInstructor(
   if (cannotAddOccurrenceDueToMax(existingForIns, block, ins.maxBlockCount)) {
     return null;
   }
+  if (wouldExceedPerCourseMax(ins, existingForIns, block)) {
+    return null;
+  }
   const beforeBaseCount = distinctBaseBlockCount(existingForIns);
   const addsNewBase = !existingForIns.some((b) => b.baseBlockId === block.baseBlockId);
   const afterBaseCount = addsNewBase ? beforeBaseCount + 1 : beforeBaseCount;
@@ -363,11 +391,31 @@ function tryAddBlockToInstructor(
   return { cost, nextExisting, nextDays };
 }
 
+function courseBalancePenalty(
+  courseId: string,
+  insId: string,
+  instructorBlocks: Map<string, FlightBlockOccurrence[]>,
+  candidateIds: string[],
+  addingBaseId: string,
+): number {
+  if (candidateIds.length <= 1) return 0;
+  const counts = candidateIds.map((id) => {
+    const existing = instructorBlocks.get(id) ?? [];
+    const bases = new Set(existing.filter((b) => b.courseId === courseId).map((b) => b.baseBlockId));
+    const add = id === insId && !bases.has(addingBaseId) ? 1 : 0;
+    return bases.size + add;
+  });
+  const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+  const mine = counts[candidateIds.indexOf(insId)] ?? mean;
+  return Math.abs(mine - mean) * COURSE_BALANCE_WEIGHT;
+}
+
 function tryAssignGroup(
   ins: Instructor,
   occs: FlightBlockOccurrence[],
   instructorBlocks: Map<string, FlightBlockOccurrence[]>,
   instructorDays: Map<string, Set<DayOfWeek>>,
+  candidateIds?: string[],
 ): number | null {
   const sorted = [...occs].sort(
     (a, b) => a.day - b.day || a.startMin - b.startMin,
@@ -383,6 +431,16 @@ function tryAssignGroup(
     total += r.cost;
     existing = r.nextExisting;
     days = r.nextDays;
+  }
+  if (candidateIds && candidateIds.length > 1) {
+    const first = sorted[0]!;
+    total += courseBalancePenalty(
+      first.courseId,
+      ins.id,
+      instructorBlocks,
+      candidateIds,
+      first.baseBlockId,
+    );
   }
   return total;
 }
@@ -457,6 +515,7 @@ export function solveSchedule(
   for (const group of groups) {
     const { occs, candidates } = group;
     const first = occs[0]!;
+    const candidateIds = candidates.map((c) => c.id);
 
     if (candidates.length === 0) {
       const qualified = instructors.filter((i) =>
@@ -493,7 +552,13 @@ export function solveSchedule(
         continue;
       }
       anyHadCapacity = true;
-      const cost = tryAssignGroup(ins, occs, instructorBlocks, instructorDays);
+      const cost = tryAssignGroup(
+        ins,
+        occs,
+        instructorBlocks,
+        instructorDays,
+        candidateIds,
+      );
       if (cost === null) continue;
       if (best === null || cost < best.cost) {
         best = { id: ins.id, cost };

@@ -273,6 +273,19 @@ export default function App() {
     }));
   }, []);
 
+  const clearInstructorSchedule = useCallback((instructorId: string) => {
+    setState((prev) => ({
+      ...prev,
+      assignments: ensureAssignmentsForBlocks(prev.blocks, prev.assignments).map((a) =>
+        a.instructorId === instructorId ? { ...a, instructorId: null } : a,
+      ),
+      scheduleStale: false,
+      solveWarnings: null,
+      undoSchedule: null,
+      scheduleChangeLog: null,
+    }));
+  }, []);
+
   const clearSaved = useCallback(() => {
     if (!confirm("Clear saved browser data and reset to the default course list?")) return;
     localStorage.removeItem("flight-scheduler-v1");
@@ -387,6 +400,7 @@ export default function App() {
           addFlightBlocks={addFlightBlocks}
           deleteFlightBlock={deleteFlightBlock}
           unassignAllBlocks={unassignAllBlocks}
+          clearInstructorSchedule={clearInstructorSchedule}
           runIncrementalSolve={runIncrementalSolve}
           runFullSolve={runFullSolve}
           saveBlockEdit={saveBlockEdit}
@@ -554,6 +568,7 @@ function InstructorsPanel({
                   unavailabilityByDay: emptyUnavailability(),
                   preferredBlockCount: null,
                   maxBlockCount: 5,
+                  maxBlocksByCourseId: {},
                 },
               ],
             }));
@@ -658,6 +673,65 @@ function InstructorsPanel({
                 runs on several weekdays, it still counts as one toward preferred
                 and max. Max is a hard limit (default 5).
               </p>
+
+              <div>
+                <span className="muted mini">Per-course student caps (optional)</span>
+                <p className="hint" style={{ marginTop: "0.25rem" }}>
+                  Limit how many students from a <strong>specific course</strong>{" "}
+                  this instructor can take in a week. Blank = unlimited.
+                </p>
+                <div className="stack" style={{ gap: "0.45rem" }}>
+                  {state.courses.map((c) => {
+                    const qual = ins.qualifiedCourseIds.includes(c.id);
+                    const v = ins.maxBlocksByCourseId?.[c.id] ?? "";
+                    return (
+                      <div
+                        key={c.id}
+                        className="row"
+                        style={{
+                          gap: "0.6rem",
+                          alignItems: "center",
+                          opacity: qual ? 1 : 0.5,
+                        }}
+                      >
+                        <span style={{ flex: "1 1 auto" }}>{c.name}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          placeholder="∞"
+                          disabled={!qual}
+                          value={v}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setSetup((s) => ({
+                              ...s,
+                              instructors: s.instructors.map((x) => {
+                                if (x.id !== ins.id) return x;
+                                const next = { ...(x.maxBlocksByCourseId ?? {}) };
+                                if (raw.trim() === "") {
+                                  delete next[c.id];
+                                } else {
+                                  const n = Math.max(
+                                    1,
+                                    Math.floor(Number(raw) || 1),
+                                  );
+                                  next[c.id] = n;
+                                }
+                                return { ...x, maxBlocksByCourseId: next };
+                              }),
+                            }));
+                          }}
+                          style={{ width: "6rem" }}
+                        />
+                      </div>
+                    );
+                  })}
+                  {state.courses.length === 0 && (
+                    <span className="muted mini">Add courses first.</span>
+                  )}
+                </div>
+              </div>
 
               <div>
                 <span className="muted mini">Qualified to teach</span>
@@ -818,6 +892,7 @@ function ScheduleTab({
   addFlightBlocks,
   deleteFlightBlock,
   unassignAllBlocks,
+  clearInstructorSchedule,
   runIncrementalSolve,
   runFullSolve,
   saveBlockEdit,
@@ -828,6 +903,7 @@ function ScheduleTab({
   addFlightBlocks: (payload: AddFlightBlocksPayload) => void;
   deleteFlightBlock: (baseId: string) => void;
   unassignAllBlocks: () => void;
+  clearInstructorSchedule: (instructorId: string) => void;
   runIncrementalSolve: () => void;
   runFullSolve: () => void;
   saveBlockEdit: (
@@ -1044,6 +1120,7 @@ function ScheduleTab({
           blocks={expandedBlocks}
           assignments={rowsForManual}
           courses={state.courses}
+          onClearInstructor={clearInstructorSchedule}
           onBlockClick={(id) => setEditingBlockId(id)}
         />
       </section>
