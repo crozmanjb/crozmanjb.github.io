@@ -36,7 +36,6 @@ import {
   UNASSIGNED_OPTION,
 } from "./InstructorWeekTimeline";
 import { UnavailabilityWeekEditor } from "./UnavailabilityWeekEditor";
-import { BLOCK_DURATION_MIN } from "./constants";
 import {
   baseBlockAssignmentSummary,
   summarizeAssignmentChanges,
@@ -238,7 +237,7 @@ export default function App() {
               courseId: payload.courseId,
               days: payload.days,
               startMin,
-              endMin: startMin + BLOCK_DURATION_MIN,
+              endMin: payload.endMin,
               label: "",
               blockedInstructorIds: [],
             };
@@ -259,6 +258,20 @@ export default function App() {
     },
     [setSetup],
   );
+
+  const unassignAllBlocks = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      assignments: ensureAssignmentsForBlocks(prev.blocks, prev.assignments).map((a) => ({
+        ...a,
+        instructorId: null,
+      })),
+      scheduleStale: false,
+      solveWarnings: null,
+      undoSchedule: null,
+      scheduleChangeLog: null,
+    }));
+  }, []);
 
   const clearSaved = useCallback(() => {
     if (!confirm("Clear saved browser data and reset to the default course list?")) return;
@@ -282,7 +295,7 @@ export default function App() {
         <h1>Flight Scheduler</h1>
         <p className="lead">
           Add <strong>flight blocks</strong> on the Schedule tab under{" "}
-          <strong>Day view</strong> (each is 2.5 hours, one student per block).
+          <strong>Day view</strong> (one student per block, custom duration).
           Configure instructors, courses, and
           availability under Setup, then assign automatically or by hand. All
           times use one fixed timezone for everyone.
@@ -373,6 +386,7 @@ export default function App() {
           state={state}
           addFlightBlocks={addFlightBlocks}
           deleteFlightBlock={deleteFlightBlock}
+          unassignAllBlocks={unassignAllBlocks}
           runIncrementalSolve={runIncrementalSolve}
           runFullSolve={runFullSolve}
           saveBlockEdit={saveBlockEdit}
@@ -763,7 +777,7 @@ function InstructorsPanel({
                 <p className="hint">
                   Instructors are <strong>available</strong> by default. Add times
                   they <strong>cannot</strong> fly. A day with no rows means
-                  available all day. Each block is 2.5 hours and must not overlap
+                  available all day. A block must not overlap
                   any unavailable window.
                 </p>
                 <UnavailabilityWeekEditor
@@ -803,6 +817,7 @@ function ScheduleTab({
   state,
   addFlightBlocks,
   deleteFlightBlock,
+  unassignAllBlocks,
   runIncrementalSolve,
   runFullSolve,
   saveBlockEdit,
@@ -812,6 +827,7 @@ function ScheduleTab({
   state: AppState;
   addFlightBlocks: (payload: AddFlightBlocksPayload) => void;
   deleteFlightBlock: (baseId: string) => void;
+  unassignAllBlocks: () => void;
   runIncrementalSolve: () => void;
   runFullSolve: () => void;
   saveBlockEdit: (
@@ -945,6 +961,9 @@ function ScheduleTab({
             </button>
             <button type="button" onClick={runFullSolve}>
               Full re-solve
+            </button>
+            <button type="button" className="ghost" onClick={unassignAllBlocks}>
+              Unassign all
             </button>
           </div>
         </div>

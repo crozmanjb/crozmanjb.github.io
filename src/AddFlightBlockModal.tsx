@@ -2,8 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { BLOCK_DURATION_MIN, MAX_BLOCK_START_MIN } from "./constants";
 import type { Course, FlightDayOfWeek } from "./types";
 import { FLIGHT_DAY_LABELS } from "./types";
-import { minutesToLabel } from "./time";
-import { minutesToTimeInputValue, timeInputValueToMinutes } from "./timeInput";
+import { minutesToLabel, parseTimeToMinutes } from "./time";
 
 /** Cap for how many identical blocks to add at once */
 export const MAX_FLIGHT_BLOCKS_BATCH = 30;
@@ -12,6 +11,7 @@ export type AddFlightBlocksPayload = {
   courseId: string;
   days: FlightDayOfWeek[];
   startMin: number;
+  endMin: number;
   /** Number of independent student slots with the same course / days / time */
   count: number;
 };
@@ -32,13 +32,19 @@ export function AddFlightBlockModal({
   const [courseId, setCourseId] = useState("");
   const [days, setDays] = useState<FlightDayOfWeek[]>([0]);
   const [startMin, setStartMin] = useState(9 * 60);
+  const [endMin, setEndMin] = useState(9 * 60 + BLOCK_DURATION_MIN);
   const [countInput, setCountInput] = useState("1");
+  const [startText, setStartText] = useState("09:00");
+  const [endText, setEndText] = useState("11:30");
 
   useEffect(() => {
     if (!open) return;
     setCourseId(courses[0]?.id ?? "");
     setDays([0]);
     setStartMin(9 * 60);
+    setEndMin(9 * 60 + BLOCK_DURATION_MIN);
+    setStartText("09:00");
+    setEndText("11:30");
     setCountInput("1");
   }, [open, courses]);
 
@@ -54,8 +60,6 @@ export function AddFlightBlockModal({
 
   if (!open) return null;
 
-  const endMin = startMin + BLOCK_DURATION_MIN;
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const daySet = [...new Set(days)].filter((d) => d >= 0 && d <= 5) as FlightDayOfWeek[];
@@ -63,6 +67,7 @@ export function AddFlightBlockModal({
     if (daySet.length === 0 || !courseId) return;
     const parsedCount = Math.floor(Number(countInput));
     if (!Number.isFinite(parsedCount)) return;
+    if (endMin <= startMin) return;
     const n = Math.min(
       MAX_FLIGHT_BLOCKS_BATCH,
       Math.max(1, parsedCount),
@@ -71,6 +76,7 @@ export function AddFlightBlockModal({
       courseId,
       days: daySet,
       startMin: Math.max(0, Math.min(MAX_BLOCK_START_MIN, Math.floor(startMin))),
+      endMin: Math.max(1, Math.min(24 * 60, Math.floor(endMin))),
       count: n,
     });
     onClose();
@@ -100,9 +106,9 @@ export function AddFlightBlockModal({
       >
         <h2 id="add-block-title">Add flight block</h2>
         <p className="hint" style={{ marginTop: 0 }}>
-          Each block is one student slot (2.5 hours). Blocks show on the day
-          view timeline for every day you pick below. Add several at once if they
-          share the same course, days, and start time.
+          Each block is one student slot. Blocks show on the day view timeline
+          for every day you pick below. Add several at once if they share the
+          same course, days, and time window.
         </p>
         <form onSubmit={handleSubmit} className="stack">
           <div>
@@ -146,27 +152,46 @@ export function AddFlightBlockModal({
               })}
             </div>
           </div>
-          <div className="row" style={{ gap: "1rem", alignItems: "flex-end" }}>
+          <div className="row" style={{ gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
             <div>
               <label htmlFor="abf-start">Start time</label>
               <input
                 id="abf-start"
-                type="time"
-                step={60}
-                value={minutesToTimeInputValue(startMin)}
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:MM"
+                value={startText}
                 onChange={(e) => {
-                  const m = timeInputValueToMinutes(e.target.value);
+                  setStartText(e.target.value);
+                  const m = parseTimeToMinutes(e.target.value);
                   if (m === null) return;
                   setStartMin(Math.min(MAX_BLOCK_START_MIN, Math.max(0, m)));
                 }}
+                onBlur={() => setStartText(minutesToLabel(startMin))}
               />
             </div>
             <div>
-              <span className="muted mini">End (2.5h)</span>
-              <div className="mono" style={{ padding: "0.45rem 0" }}>
-                {minutesToLabel(endMin)}
-              </div>
+              <label htmlFor="abf-end">End time</label>
+              <input
+                id="abf-end"
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:MM"
+                value={endText}
+                onChange={(e) => {
+                  setEndText(e.target.value);
+                  const m = parseTimeToMinutes(e.target.value);
+                  if (m === null) return;
+                  setEndMin(Math.min(24 * 60, Math.max(1, m)));
+                }}
+                onBlur={() => setEndText(minutesToLabel(endMin))}
+              />
             </div>
+            {endMin <= startMin && (
+              <span className="muted mini" style={{ color: "var(--bad)" }}>
+                End must be later than start.
+              </span>
+            )}
           </div>
           <div>
             <label htmlFor="abf-count">How many identical blocks</label>
@@ -195,7 +220,8 @@ export function AddFlightBlockModal({
                 courses.length === 0 ||
                 days.length === 0 ||
                 countInput.trim() === "" ||
-                !Number.isFinite(Number(countInput))
+                !Number.isFinite(Number(countInput)) ||
+                endMin <= startMin
               }
             >
               Add to schedule

@@ -172,6 +172,11 @@ export function normalizeBlock(
     0,
     Math.min(MAX_BLOCK_START_MIN, raw.startMin),
   );
+  const rawEnd =
+    typeof raw.endMin === "number" && Number.isFinite(raw.endMin)
+      ? Math.floor(raw.endMin)
+      : startMin + BLOCK_DURATION_MIN;
+  const endMin = Math.max(startMin + 1, Math.min(24 * 60, rawEnd));
   const blocked = Array.isArray(raw.blockedInstructorIds)
     ? raw.blockedInstructorIds.filter((id) => validInstructorIds.has(id))
     : [];
@@ -182,7 +187,7 @@ export function normalizeBlock(
     days: normalizeDays(raw),
     label,
     startMin,
-    endMin: startMin + BLOCK_DURATION_MIN,
+    endMin,
     blockedInstructorIds: blocked,
   };
 }

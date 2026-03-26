@@ -1,4 +1,4 @@
-import { BLOCK_DURATION_MIN, MAX_BLOCK_START_MIN } from "./constants";
+import { MAX_BLOCK_START_MIN } from "./constants";
 import {
   ensureAssignmentsForBlocks,
   validateBlockAssignment,
@@ -14,6 +14,7 @@ export type BlockEditPayload = {
   courseId: string;
   days: FlightDayOfWeek[];
   startMin: number;
+  endMin: number;
   instructorId: string | null;
   blockedInstructorIds: string[];
 };
@@ -35,13 +36,20 @@ export function applyBlockEdit(
     0,
     Math.min(MAX_BLOCK_START_MIN, Math.floor(edit.startMin)),
   );
+  const endMin = Math.max(
+    1,
+    Math.min(24 * 60, Math.floor(edit.endMin)),
+  );
+  if (endMin <= startMin) {
+    return { next: prev, error: "End time must be later than start time." };
+  }
   const nextBlock: FlightBlock = {
     ...block,
     label: edit.label.trim(),
     courseId: edit.courseId,
     days,
     startMin,
-    endMin: startMin + BLOCK_DURATION_MIN,
+    endMin,
     blockedInstructorIds: edit.blockedInstructorIds,
   };
 

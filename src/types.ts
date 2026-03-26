@@ -69,7 +69,7 @@ export type FlightBlock = {
   /** Days this block repeats (same start time each day). Unique, sorted. Mon–Sat only. */
   days: FlightDayOfWeek[];
   startMin: number;
-  /** Always start + 2.5 hours; stored for display and overlap checks */
+  /** End time in minutes from midnight (must be after start, same day). */
   endMin: number;
   /**
    * Optional name (e.g. student); empty until known. One flight block = one

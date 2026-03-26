@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { BLOCK_DURATION_MIN } from "./constants";
 import { assignLanesGroupedByCourse } from "./scheduleLanes";
 import { blockGradientFromHex, courseColorOrDefault } from "./courseColors";
 import {
@@ -127,7 +126,7 @@ export function DayTimeline({
                 0,
                 ((b.startMin - VIEW_START_MIN) / VIEW_SPAN) * 100,
               );
-              const rawH = (BLOCK_DURATION_MIN / VIEW_SPAN) * 100;
+              const rawH = ((b.endMin - b.startMin) / VIEW_SPAN) * 100;
               const h = Math.min(Math.max(rawH, 2.5), 100 - top);
               const laneW = 100 / laneCount;
               const left = lane * laneW;

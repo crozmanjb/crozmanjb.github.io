@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { BLOCK_DURATION_MIN } from "./constants";
 import { blockGradientFromHex, courseColorOrDefault } from "./courseColors";
 import { assignLanesGroupedByCourse } from "./scheduleLanes";
 import {
@@ -207,7 +206,7 @@ export function InstructorWeekTimeline({
                     const lane = laneByBlockId.get(b.id) ?? 0;
                     const left = lane * laneW;
                     const top = Math.max(0, ((b.startMin - VIEW_START_MIN) / VIEW_SPAN) * 100);
-                    const rawH = (BLOCK_DURATION_MIN / VIEW_SPAN) * 100;
+                    const rawH = ((b.endMin - b.startMin) / VIEW_SPAN) * 100;
                     const h = Math.min(Math.max(rawH, 2.5), 100 - top);
                     const ci = courses.findIndex((c) => c.id === b.courseId);
                     const course = courses[ci];

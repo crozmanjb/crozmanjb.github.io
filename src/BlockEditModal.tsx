@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { BLOCK_DURATION_MIN, MAX_BLOCK_START_MIN } from "./constants";
+import { MAX_BLOCK_START_MIN } from "./constants";
 import type { BlockEditPayload } from "./blockEdit";
 import type { Course, FlightBlock, FlightDayOfWeek, Instructor } from "./types";
 import { FLIGHT_DAY_LABELS } from "./types";
-import { minutesToLabel } from "./time";
-import { minutesToTimeInputValue, timeInputValueToMinutes } from "./timeInput";
+import { minutesToLabel, parseTimeToMinutes } from "./time";
 
 type Props = {
   baseBlock: FlightBlock;
@@ -31,6 +30,9 @@ export function BlockEditModal({
   const [courseId, setCourseId] = useState(baseBlock.courseId);
   const [days, setDays] = useState<FlightDayOfWeek[]>(baseBlock.days);
   const [startMin, setStartMin] = useState(baseBlock.startMin);
+  const [endMin, setEndMin] = useState(baseBlock.endMin);
+  const [startText, setStartText] = useState(minutesToLabel(baseBlock.startMin));
+  const [endText, setEndText] = useState(minutesToLabel(baseBlock.endMin));
   const [ins, setIns] = useState<string | null>(instructorId);
   const [blockedIds, setBlockedIds] = useState<string[]>(baseBlock.blockedInstructorIds);
 
@@ -39,6 +41,9 @@ export function BlockEditModal({
     setCourseId(baseBlock.courseId);
     setDays(baseBlock.days);
     setStartMin(baseBlock.startMin);
+    setEndMin(baseBlock.endMin);
+    setStartText(minutesToLabel(baseBlock.startMin));
+    setEndText(minutesToLabel(baseBlock.endMin));
     setIns(instructorId);
     setBlockedIds(baseBlock.blockedInstructorIds);
   }, [baseBlock, instructorId]);
@@ -68,17 +73,17 @@ export function BlockEditModal({
     }
   }, [assignableInstructors, ins]);
 
-  const endMin = startMin + BLOCK_DURATION_MIN;
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const daySet = [...new Set(days)].filter((d) => d >= 0 && d <= 5) as FlightDayOfWeek[];
     daySet.sort((a, b) => a - b);
+    if (endMin <= startMin) return;
     onSave({
       label: label.trim(),
       courseId,
       days: daySet,
       startMin: Math.max(0, Math.min(MAX_BLOCK_START_MIN, startMin)),
+      endMin: Math.max(1, Math.min(24 * 60, endMin)),
       instructorId: ins,
       blockedInstructorIds: blockedIds,
     });
@@ -178,27 +183,46 @@ export function BlockEditModal({
               })}
             </div>
           </div>
-          <div className="row" style={{ gap: "1rem", alignItems: "flex-end" }}>
+          <div className="row" style={{ gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
             <div>
               <label htmlFor="be-start">Start time</label>
               <input
                 id="be-start"
-                type="time"
-                step={60}
-                value={minutesToTimeInputValue(startMin)}
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:MM"
+                value={startText}
                 onChange={(e) => {
-                  const m = timeInputValueToMinutes(e.target.value);
+                  setStartText(e.target.value);
+                  const m = parseTimeToMinutes(e.target.value);
                   if (m === null) return;
                   setStartMin(Math.min(MAX_BLOCK_START_MIN, Math.max(0, m)));
                 }}
+                onBlur={() => setStartText(minutesToLabel(startMin))}
               />
             </div>
             <div>
-              <span className="muted mini">End (2.5h)</span>
-              <div className="mono" style={{ padding: "0.45rem 0" }}>
-                {minutesToLabel(endMin)}
-              </div>
+              <label htmlFor="be-end">End time</label>
+              <input
+                id="be-end"
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:MM"
+                value={endText}
+                onChange={(e) => {
+                  setEndText(e.target.value);
+                  const m = parseTimeToMinutes(e.target.value);
+                  if (m === null) return;
+                  setEndMin(Math.min(24 * 60, Math.max(1, m)));
+                }}
+                onBlur={() => setEndText(minutesToLabel(endMin))}
+              />
             </div>
+            {endMin <= startMin && (
+              <span className="muted mini" style={{ color: "var(--bad)" }}>
+                End must be later than start.
+              </span>
+            )}
           </div>
           <div>
             <span className="muted mini">Exclude instructors (optional)</span>
@@ -285,7 +309,7 @@ export function BlockEditModal({
               <button type="button" className="ghost" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="primary">
+              <button type="submit" className="primary" disabled={endMin <= startMin}>
                 Save
               </button>
             </div>
