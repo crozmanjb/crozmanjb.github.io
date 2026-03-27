@@ -243,7 +243,7 @@ export function InstructorWeekTimeline({
         </span>
       </div>
 
-      {mode !== "all" ? (
+      {mode === "single" || mode === "unassigned" ? (
         <div className="week-timeline-scroll">
           <div className="week-timeline-grid">
             <div className="week-corner" style={{ gridColumn: 1, gridRow: 1 }} aria-hidden />
@@ -274,7 +274,6 @@ export function InstructorWeekTimeline({
                 if (mode === "unassigned") return insId === null;
                 // single: always show unassigned + this instructor
                 if (mode === "single") return insId === null || insId === selectedInstructorId;
-                if (mode === "multi") return insId === null || multiIds.includes(insId);
                 return insId === null;
               });
               const { laneByBlockId, laneCount } = assignLanesGroupedByCourse(dayBlocks);
@@ -295,9 +294,6 @@ export function InstructorWeekTimeline({
                     const rawH = ((b.endMin - b.startMin) / VIEW_SPAN) * 100;
                     const h = Math.min(Math.max(rawH, 2.5), 100 - top);
                     const insId = assignmentByBlock.get(b.id) ?? null;
-                    const insIdx =
-                      insId === null ? -1 : instructors.findIndex((i) => i.id === insId);
-                    const hue = insIdx >= 0 ? (insIdx * 47) % 360 : 0;
                     const ci = courses.findIndex((c) => c.id === b.courseId);
                     const course = courses[ci];
                     const bg = blockGradientFromHex(
@@ -314,12 +310,6 @@ export function InstructorWeekTimeline({
                           top: `${top}%`,
                           height: `${h}%`,
                           background: bg,
-                          outline:
-                            mode === "multi" && insId !== null
-                              ? `2px solid hsl(${hue} 75% 55%)`
-                              : undefined,
-                          outlineOffset:
-                            mode === "multi" && insId !== null ? "-2px" : undefined,
                           zIndex: 3,
                         }}
                         onClick={() => onBlockClick(b.id)}
@@ -344,7 +334,7 @@ export function InstructorWeekTimeline({
             })}
           </div>
         </div>
-      ) : (
+      ) : mode === "all" || mode === "multi" ? (
         <div className="week-all-grid-scroll">
           <div className="week-all-grid">
             <div className="week-all-corner" />
@@ -395,7 +385,10 @@ export function InstructorWeekTimeline({
                 );
               })}
             </div>
-            {instructors.map((ins) => (
+            {(mode === "multi"
+              ? instructors.filter((i) => multiIds.includes(i.id))
+              : instructors
+            ).map((ins) => (
               <div key={ins.id} className="week-all-row">
                 <div className="week-all-ins-name">
                   <div>{ins.name}</div>
@@ -447,7 +440,7 @@ export function InstructorWeekTimeline({
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       <p className="hint" style={{ marginTop: "0.5rem", marginBottom: 0 }}>
         {mode === "single"
@@ -455,7 +448,7 @@ export function InstructorWeekTimeline({
           : mode === "unassigned"
             ? "Showing only unassigned blocks."
             : mode === "multi"
-              ? "Showing selected instructors’ blocks together (colored outlines) plus any unassigned blocks (grayed)."
+              ? "Multiple instructors: rows for each selected instructor (plus an Unassigned row)."
             : "All instructors at once: each cell is a compact list of blocks (height fits content). Unassigned blocks are in the first row."}
       </p>
     </div>
