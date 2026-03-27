@@ -27,12 +27,14 @@ export function AddUnavailabilityModal({
   const [days, setDays] = useState<DayOfWeek[]>(defaultDays?.length ? defaultDays : [0]);
   const [startMin, setStartMin] = useState(12 * 60);
   const [endMin, setEndMin] = useState(13 * 60);
+  const [allDay, setAllDay] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setDays(defaultDays?.length ? defaultDays : [0]);
     setStartMin(12 * 60);
     setEndMin(13 * 60);
+    setAllDay(false);
   }, [open, defaultDays]);
 
   useEffect(() => {
@@ -46,11 +48,12 @@ export function AddUnavailabilityModal({
   }, [open, onClose]);
 
   const display = useMemo(() => {
+    if (allDay) return "00:00–24:00";
     const s = Math.max(0, Math.min(24 * 60, startMin));
     const e = Math.max(0, Math.min(24 * 60, endMin));
     if (e <= s) return null;
     return `${minutesToLabel(s)}–${minutesToLabel(e)}`;
-  }, [startMin, endMin]);
+  }, [startMin, endMin, allDay]);
 
   if (!open) return null;
 
@@ -59,8 +62,8 @@ export function AddUnavailabilityModal({
     const daySet = [...new Set(days)]
       .filter((d) => d >= 0 && d <= 6) as DayOfWeek[];
     daySet.sort((a, b) => a - b);
-    const s = Math.max(0, Math.min(24 * 60, Math.floor(startMin)));
-    const eMin = Math.max(0, Math.min(24 * 60, Math.floor(endMin)));
+    const s = allDay ? 0 : Math.max(0, Math.min(24 * 60, Math.floor(startMin)));
+    const eMin = allDay ? 24 * 60 : Math.max(0, Math.min(24 * 60, Math.floor(endMin)));
     if (daySet.length === 0 || eMin <= s) return;
     onConfirm({ days: daySet, startMin: s, endMin: eMin });
     onClose();
@@ -111,6 +114,15 @@ export function AddUnavailabilityModal({
               })}
             </div>
           </div>
+          <label className="row" style={{ gap: "0.45rem", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={allDay}
+              onChange={(e) => setAllDay(e.target.checked)}
+            />
+            <span>All day unavailable</span>
+            <span className="muted mini">(00:00–24:00)</span>
+          </label>
           <div className="row" style={{ gap: "1rem", alignItems: "flex-end" }}>
             <div>
               <label htmlFor="aua-start">Start</label>
@@ -119,6 +131,7 @@ export function AddUnavailabilityModal({
                 type="time"
                 step={60}
                 value={minutesToTimeInputValue(startMin)}
+                disabled={allDay}
                 onChange={(e) => {
                   const m = timeInputValueToMinutes(e.target.value);
                   if (m === null) return;
@@ -134,6 +147,7 @@ export function AddUnavailabilityModal({
                 type="time"
                 step={60}
                 value={minutesToTimeInputValue(endMin)}
+                disabled={allDay}
                 onChange={(e) => {
                   const m = timeInputValueToMinutes(e.target.value);
                   if (m === null) return;

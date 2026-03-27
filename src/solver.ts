@@ -21,7 +21,8 @@ const PREFERENCE_WEIGHT = 38;
 const PREFERRED_COURSE_WEIGHT = 92;
 const MIN_FULL_DAYS_OFF = 2;
 const MAX_DISTINCT_WORK_DAYS = 7 - MIN_FULL_DAYS_OFF;
-const EXTRA_WORK_DAY_WEIGHT = 320;
+// Strongly discourage >5 distinct work days when alternatives exist.
+const EXTRA_WORK_DAY_WEIGHT = 5000;
 const COURSE_BALANCE_WEIGHT = 55;
 
 function blockAllowedByUnavailability(

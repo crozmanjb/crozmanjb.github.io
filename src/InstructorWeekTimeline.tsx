@@ -96,6 +96,20 @@ export function InstructorWeekTimeline({
     return out;
   }, [instructors, blocks, assignmentByBlock]);
 
+  const studentCountByInstructorId = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const ins of instructors) {
+      const bases = new Set<string>();
+      for (const b of blocks) {
+        const insId = assignmentByBlock.get(b.id) ?? null;
+        if (insId !== ins.id) continue;
+        bases.add(b.baseBlockId);
+      }
+      out.set(ins.id, bases.size);
+    }
+    return out;
+  }, [instructors, blocks, assignmentByBlock]);
+
   /** Unassigned occurrences per flight day (Mon–Sat) for the all-instructors grid row. */
   const unassignedByDay = useMemo(() => {
     const out: FlightBlockOccurrence[][] = [[], [], [], [], [], []];
@@ -383,7 +397,13 @@ export function InstructorWeekTimeline({
             </div>
             {instructors.map((ins) => (
               <div key={ins.id} className="week-all-row">
-                <div className="week-all-ins-name">{ins.name}</div>
+                <div className="week-all-ins-name">
+                  <div>{ins.name}</div>
+                  <div className="muted mini">
+                    {studentCountByInstructorId.get(ins.id) ?? 0} student
+                    {(studentCountByInstructorId.get(ins.id) ?? 0) === 1 ? "" : "s"}
+                  </div>
+                </div>
                 {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
                   const dayBlocks = blocksByInstructorDay.get(ins.id)?.[day] ?? [];
                   return (
