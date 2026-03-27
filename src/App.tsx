@@ -98,7 +98,11 @@ export default function App() {
         }
         if (
           payload.instructorId &&
-          !next.assignments?.find((a) => a.blockId === blockId)?.instructorId
+          !next.assignments?.some(
+            (a) =>
+              a.instructorId === payload.instructorId &&
+              baseBlockIdFromAnyId(a.blockId) === baseBlockIdFromAnyId(blockId),
+          )
         ) {
           alert(
             "Instructor was cleared because they are not qualified for the selected course, or are excluded from this block.",
@@ -999,11 +1003,11 @@ function ScheduleTab({
             You can keep this schedule or revert to the previous assignments.
           </p>
           <div className="row">
-            <button type="button" className="primary" onClick={revertSchedule}>
-              Revert to previous
-            </button>
-            <button type="button" onClick={dismissUndo}>
+            <button type="button" className="primary" onClick={dismissUndo}>
               Keep new schedule
+            </button>
+            <button type="button" onClick={revertSchedule}>
+              Revert to previous
             </button>
           </div>
         </section>

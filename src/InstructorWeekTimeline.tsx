@@ -191,18 +191,6 @@ export function InstructorWeekTimeline({
                     }}
                   />
                   <span>{ins.name}</span>
-                  {onClearInstructor && checked && (
-                    <button
-                      type="button"
-                      className="ghost mini"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onClearInstructor(ins.id);
-                      }}
-                    >
-                      Clear
-                    </button>
-                  )}
                 </label>
               );
             })}

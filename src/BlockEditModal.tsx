@@ -31,6 +31,9 @@ export function BlockEditModal({
   const [days, setDays] = useState<FlightDayOfWeek[]>(baseBlock.days);
   const [startMin, setStartMin] = useState(baseBlock.startMin);
   const [endMin, setEndMin] = useState(baseBlock.endMin);
+  const [durationMin, setDurationMin] = useState(
+    Math.max(1, baseBlock.endMin - baseBlock.startMin),
+  );
   const [startText, setStartText] = useState(minutesToLabel(baseBlock.startMin));
   const [endText, setEndText] = useState(minutesToLabel(baseBlock.endMin));
   const [ins, setIns] = useState<string | null>(instructorId);
@@ -42,6 +45,7 @@ export function BlockEditModal({
     setDays(baseBlock.days);
     setStartMin(baseBlock.startMin);
     setEndMin(baseBlock.endMin);
+    setDurationMin(Math.max(1, baseBlock.endMin - baseBlock.startMin));
     setStartText(minutesToLabel(baseBlock.startMin));
     setEndText(minutesToLabel(baseBlock.endMin));
     setIns(instructorId);
@@ -196,7 +200,9 @@ export function BlockEditModal({
                   setStartText(e.target.value);
                   const m = parseTimeToMinutes(e.target.value);
                   if (m === null) return;
-                  setStartMin(Math.min(MAX_BLOCK_START_MIN, Math.max(0, m)));
+                  const nextStart = Math.min(MAX_BLOCK_START_MIN, Math.max(0, m));
+                  setStartMin(nextStart);
+                  setEndMin(Math.min(24 * 60, nextStart + durationMin));
                 }}
                 onBlur={() => setStartText(minutesToLabel(startMin))}
               />
@@ -213,7 +219,11 @@ export function BlockEditModal({
                   setEndText(e.target.value);
                   const m = parseTimeToMinutes(e.target.value);
                   if (m === null) return;
-                  setEndMin(Math.min(24 * 60, Math.max(1, m)));
+                  const nextEnd = Math.min(24 * 60, Math.max(1, m));
+                  setEndMin(nextEnd);
+                  if (nextEnd > startMin) {
+                    setDurationMin(nextEnd - startMin);
+                  }
                 }}
                 onBlur={() => setEndText(minutesToLabel(endMin))}
               />

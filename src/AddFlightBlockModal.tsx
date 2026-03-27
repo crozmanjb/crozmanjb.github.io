@@ -33,6 +33,7 @@ export function AddFlightBlockModal({
   const [days, setDays] = useState<FlightDayOfWeek[]>([0]);
   const [startMin, setStartMin] = useState(9 * 60);
   const [endMin, setEndMin] = useState(9 * 60 + BLOCK_DURATION_MIN);
+  const [durationMin, setDurationMin] = useState(BLOCK_DURATION_MIN);
   const [countInput, setCountInput] = useState("1");
   const [startText, setStartText] = useState("09:00");
   const [endText, setEndText] = useState("11:30");
@@ -43,6 +44,7 @@ export function AddFlightBlockModal({
     setDays([0]);
     setStartMin(9 * 60);
     setEndMin(9 * 60 + BLOCK_DURATION_MIN);
+    setDurationMin(BLOCK_DURATION_MIN);
     setStartText("09:00");
     setEndText("11:30");
     setCountInput("1");
@@ -165,7 +167,9 @@ export function AddFlightBlockModal({
                   setStartText(e.target.value);
                   const m = parseTimeToMinutes(e.target.value);
                   if (m === null) return;
-                  setStartMin(Math.min(MAX_BLOCK_START_MIN, Math.max(0, m)));
+                  const nextStart = Math.min(MAX_BLOCK_START_MIN, Math.max(0, m));
+                  setStartMin(nextStart);
+                  setEndMin(Math.min(24 * 60, nextStart + durationMin));
                 }}
                 onBlur={() => setStartText(minutesToLabel(startMin))}
               />
@@ -182,7 +186,11 @@ export function AddFlightBlockModal({
                   setEndText(e.target.value);
                   const m = parseTimeToMinutes(e.target.value);
                   if (m === null) return;
-                  setEndMin(Math.min(24 * 60, Math.max(1, m)));
+                  const nextEnd = Math.min(24 * 60, Math.max(1, m));
+                  setEndMin(nextEnd);
+                  if (nextEnd > startMin) {
+                    setDurationMin(nextEnd - startMin);
+                  }
                 }}
                 onBlur={() => setEndText(minutesToLabel(endMin))}
               />
