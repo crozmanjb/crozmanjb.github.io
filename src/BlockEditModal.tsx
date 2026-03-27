@@ -52,6 +52,14 @@ export function BlockEditModal({
     setBlockedIds(baseBlock.blockedInstructorIds);
   }, [baseBlock, instructorId]);
 
+  const isNamed = label.trim() !== "";
+
+  useEffect(() => {
+    if (!isNamed && ins !== null) {
+      setIns(null);
+    }
+  }, [isNamed, ins]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -268,12 +276,13 @@ export function BlockEditModal({
           <div>
             <label htmlFor="be-ins">Instructor</label>
             <p className="hint" style={{ marginTop: 0 }}>
-              One instructor for this block on every day it runs. Changing this
-              updates all weekly occurrences together.
+              Add a student name above to make this block <strong>available</strong>{" "}
+              for assignment. Unnamed blocks are not assigned to instructors.
             </p>
             <select
               id="be-ins"
               value={ins ?? ""}
+              disabled={!isNamed}
               onChange={(e) =>
                 setIns(e.target.value === "" ? null : e.target.value)
               }

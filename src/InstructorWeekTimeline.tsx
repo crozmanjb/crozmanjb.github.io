@@ -115,6 +115,7 @@ export function InstructorWeekTimeline({
     const out: FlightBlockOccurrence[][] = [[], [], [], [], [], []];
     for (const b of blocks) {
       if (assignmentByBlock.get(b.id) != null) continue;
+      if (b.label.trim() === "") continue; // unnamed slots are not "available"
       out[b.day]!.push(b);
     }
     for (const d of out) d.sort((a, c) => a.startMin - c.startMin);
@@ -273,7 +274,11 @@ export function InstructorWeekTimeline({
                 const insId = assignmentByBlock.get(b.id) ?? null;
                 if (mode === "unassigned") return insId === null;
                 // single: always show unassigned + this instructor
-                if (mode === "single") return insId === null || insId === selectedInstructorId;
+                if (mode === "single") {
+                  if (insId === selectedInstructorId) return true;
+                  if (insId === null) return b.label.trim() !== "";
+                  return false;
+                }
                 return insId === null;
               });
               const { laneByBlockId, laneCount } = assignLanesGroupedByCourse(dayBlocks);

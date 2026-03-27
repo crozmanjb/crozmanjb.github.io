@@ -452,18 +452,23 @@ export function solveSchedule(
   previousAssignments: Assignment[] | null = null,
   courses?: Course[],
 ): SolveResult {
-  const blocks = expandBlocksToOccurrences(baseBlocks);
+  // Only named blocks (student known) are eligible for instructor assignment.
+  const eligibleBaseBlocks = baseBlocks.filter((b) => b.label.trim() !== "");
+  const allOccs = expandBlocksToOccurrences(baseBlocks);
+  const blocks = expandBlocksToOccurrences(eligibleBaseBlocks);
   const warnings: string[] = [];
 
-  const hasPrev =
-    previousAssignments?.some((a) => a.instructorId !== null) ?? false;
+  const eligibleOccIdSet = new Set(blocks.map((b) => b.id));
+  const filteredPrev =
+    previousAssignments?.filter((a) => eligibleOccIdSet.has(a.blockId)) ?? null;
+  const hasPrev = filteredPrev?.some((a) => a.instructorId !== null) ?? false;
 
   let instructorBlocks: Map<string, FlightBlockOccurrence[]>;
   let instructorDays: Map<string, Set<DayOfWeek>>;
   let keptMap = new Map<string, string>();
 
-  if (hasPrev && previousAssignments) {
-    const k = collectKeptAssignments(blocks, instructors, previousAssignments);
+  if (hasPrev && filteredPrev) {
+    const k = collectKeptAssignments(blocks, instructors, filteredPrev);
     keptMap = k.keptMap;
     instructorBlocks = k.instructorBlocks;
     instructorDays = k.instructorDays;
@@ -598,7 +603,7 @@ export function solveSchedule(
     partialAssignments.map((a) => [a.blockId, a.instructorId] as const),
   );
 
-  const assignments: Assignment[] = blocks.map((b) => {
+  const assignmentsEligible: Assignment[] = blocks.map((b) => {
     const kept = keptMap.get(b.id);
     if (kept !== undefined) {
       return { blockId: b.id, instructorId: kept };
@@ -608,6 +613,15 @@ export function solveSchedule(
       instructorId: partialByBlock.get(b.id) ?? null,
     };
   });
+
+  // Return assignments for ALL occurrences. Unnamed blocks are always null.
+  const eligibleMap = new Map(
+    assignmentsEligible.map((a) => [a.blockId, a.instructorId] as const),
+  );
+  const assignments: Assignment[] = allOccs.map((o) => ({
+    blockId: o.id,
+    instructorId: eligibleMap.get(o.id) ?? null,
+  }));
 
   for (const ins of instructors) {
     const d = instructorDays.get(ins.id);
@@ -619,7 +633,8 @@ export function solveSchedule(
     }
   }
 
-  const allUnassigned = assignments
+  // "Unassigned" means: named blocks that did not get an instructor.
+  const allUnassigned = assignmentsEligible
     .filter((a) => a.instructorId === null)
     .map((a) => a.blockId);
 
