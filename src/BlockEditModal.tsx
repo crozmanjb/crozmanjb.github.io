@@ -52,13 +52,6 @@ export function BlockEditModal({
     setBlockedIds(baseBlock.blockedInstructorIds);
   }, [baseBlock, instructorId]);
 
-  const isNamed = label.trim() !== "";
-
-  useEffect(() => {
-    if (!isNamed && ins !== null) {
-      setIns(null);
-    }
-  }, [isNamed, ins]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -276,13 +269,13 @@ export function BlockEditModal({
           <div>
             <label htmlFor="be-ins">Instructor</label>
             <p className="hint" style={{ marginTop: 0 }}>
-              Add a student name above to make this block <strong>available</strong>{" "}
-              for assignment. Unnamed blocks are not assigned to instructors.
+              Unnamed blocks won’t be assigned by the scheduler, but you can still
+              assign an instructor manually. If you add a student name, the block
+              becomes <strong>available</strong> for automatic assignment.
             </p>
             <select
               id="be-ins"
               value={ins ?? ""}
-              disabled={!isNamed}
               onChange={(e) =>
                 setIns(e.target.value === "" ? null : e.target.value)
               }

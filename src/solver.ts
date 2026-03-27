@@ -618,9 +618,13 @@ export function solveSchedule(
   const eligibleMap = new Map(
     assignmentsEligible.map((a) => [a.blockId, a.instructorId] as const),
   );
+  const prevMap = new Map(
+    (previousAssignments ?? []).map((a) => [a.blockId, a.instructorId] as const),
+  );
   const assignments: Assignment[] = allOccs.map((o) => ({
     blockId: o.id,
-    instructorId: eligibleMap.get(o.id) ?? null,
+    // For unnamed blocks (not in eligibleMap), preserve any manual assignment.
+    instructorId: eligibleMap.has(o.id) ? (eligibleMap.get(o.id) ?? null) : (prevMap.get(o.id) ?? null),
   }));
 
   for (const ins of instructors) {

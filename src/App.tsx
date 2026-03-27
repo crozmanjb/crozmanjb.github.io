@@ -51,7 +51,10 @@ type AppState = ReturnType<typeof loadState>;
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
-  const [tab, setTab] = useState<"setup" | "schedule">("setup");
+  const [tab, setTab] = useState<"setup" | "schedule">(() => {
+    const raw = localStorage.getItem("flight-scheduler-active-tab");
+    return raw === "setup" || raw === "schedule" ? raw : "schedule";
+  });
   const [fileError, setFileError] = useState<string | null>(null);
   const importJsonInputRef = useRef<HTMLInputElement>(null);
   const [addUnavailForInstructorId, setAddUnavailForInstructorId] = useState<
@@ -61,6 +64,10 @@ export default function App() {
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    localStorage.setItem("flight-scheduler-active-tab", tab);
+  }, [tab]);
 
   /** Setup edits mark the schedule stale; assignments stay until you run the solver or edit blocks on the Schedule tab. */
   const setSetup = useCallback((fn: (prev: AppState) => AppState) => {

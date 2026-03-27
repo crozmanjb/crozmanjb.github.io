@@ -20,6 +20,8 @@ export const UNASSIGNED_OPTION = "__UNASSIGNED__";
 export const MULTI_OPTION = "__MULTI__";
 type WeekViewMode = "single" | "all" | "unassigned" | "multi";
 
+type AllGridFilter = "all" | "noStudent" | "available";
+
 type Props = {
   selectedInstructorId: string;
   onInstructorChange: (id: string) => void;
@@ -54,7 +56,7 @@ export function InstructorWeekTimeline({
     selectedInstructorId === ALL_INSTRUCTORS_OPTION
       ? "all"
       : selectedInstructorId === UNASSIGNED_OPTION
-        ? "unassigned"
+        ? "unassigned" // Available-only grid
         : selectedInstructorId === MULTI_OPTION
           ? "multi"
         : "single";
@@ -111,11 +113,22 @@ export function InstructorWeekTimeline({
   }, [instructors, blocks, assignmentByBlock]);
 
   /** Unassigned occurrences per flight day (Mon–Sat) for the all-instructors grid row. */
-  const unassignedByDay = useMemo(() => {
+  const noStudentByDay = useMemo(() => {
     const out: FlightBlockOccurrence[][] = [[], [], [], [], [], []];
     for (const b of blocks) {
+      if (b.label.trim() !== "") continue;
+      out[b.day]!.push(b);
+    }
+    for (const d of out) d.sort((a, c) => a.startMin - c.startMin);
+    return out;
+  }, [blocks, assignmentByBlock]);
+
+  /** Named blocks with no instructor: ready to assign automatically. */
+  const availableByDay = useMemo(() => {
+    const out: FlightBlockOccurrence[][] = [[], [], [], [], [], []];
+    for (const b of blocks) {
+      if (b.label.trim() === "") continue;
       if (assignmentByBlock.get(b.id) != null) continue;
-      if (b.label.trim() === "") continue; // unnamed slots are not "available"
       out[b.day]!.push(b);
     }
     for (const d of out) d.sort((a, c) => a.startMin - c.startMin);
@@ -130,6 +143,7 @@ export function InstructorWeekTimeline({
 
   // multi selection is kept local to this component
   const [multiIds, setMultiIds] = useState<string[]>([]);
+  const [allGridFilter, setAllGridFilter] = useState<AllGridFilter>("all");
 
   useEffect(() => {
     if (mode !== "multi") return;
@@ -162,14 +176,28 @@ export function InstructorWeekTimeline({
           onChange={(e) => onInstructorChange(e.target.value)}
         >
           <option value={ALL_INSTRUCTORS_OPTION}>All instructors (week grid)</option>
-          <option value={UNASSIGNED_OPTION}>Unassigned blocks only</option>
-          <option value={MULTI_OPTION}>Multiple instructors (overlay)</option>
+          <option value={UNASSIGNED_OPTION}>Available (needs instructor) only</option>
+          <option value={MULTI_OPTION}>Multiple instructors (rows)</option>
           {instructors.map((ins) => (
             <option key={ins.id} value={ins.id}>
               {ins.name} only
             </option>
           ))}
         </select>
+
+        {(mode === "all" || mode === "multi") && (
+          <div className="row" style={{ gap: "0.35rem", alignItems: "center" }}>
+            <span className="muted mini">Show</span>
+            <select
+              value={allGridFilter}
+              onChange={(e) => setAllGridFilter(e.target.value as AllGridFilter)}
+            >
+              <option value="all">Unassigned + Available</option>
+              <option value="noStudent">Unassigned (no student) only</option>
+              <option value="available">Available (needs instructor) only</option>
+            </select>
+          </div>
+        )}
 
         {mode === "multi" && (
           <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
@@ -244,7 +272,7 @@ export function InstructorWeekTimeline({
         </span>
       </div>
 
-      {mode === "single" || mode === "unassigned" ? (
+      {mode === "single" ? (
         <div className="week-timeline-scroll">
           <div className="week-timeline-grid">
             <div className="week-corner" style={{ gridColumn: 1, gridRow: 1 }} aria-hidden />
@@ -272,11 +300,10 @@ export function InstructorWeekTimeline({
               const source = blocksByDay[day] ?? [];
               const dayBlocks = source.filter((b) => {
                 const insId = assignmentByBlock.get(b.id) ?? null;
-                if (mode === "unassigned") return insId === null;
                 // single: always show unassigned + this instructor
                 if (mode === "single") {
                   if (insId === selectedInstructorId) return true;
-                  if (insId === null) return b.label.trim() !== "";
+                  if (insId === null) return b.label.trim() !== ""; // only Available
                   return false;
                 }
                 return insId === null;
@@ -339,7 +366,7 @@ export function InstructorWeekTimeline({
             })}
           </div>
         </div>
-      ) : mode === "all" || mode === "multi" ? (
+      ) : mode === "unassigned" ? (
         <div className="week-all-grid-scroll">
           <div className="week-all-grid">
             <div className="week-all-corner" />
@@ -349,11 +376,14 @@ export function InstructorWeekTimeline({
               </div>
             ))}
             <div className="week-all-row">
-              <div className="week-all-ins-name week-all-ins-unassigned">Unassigned</div>
+              <div className="week-all-ins-name week-all-ins-unassigned">
+                Available
+                <div className="muted mini">Needs instructor</div>
+              </div>
               {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
-                const dayBlocks = unassignedByDay[day] ?? [];
+                const dayBlocks = availableByDay[day] ?? [];
                 return (
-                  <div key={`un-${day}`} className="week-all-cell week-all-cell-list">
+                  <div key={`avonly-${day}`} className="week-all-cell week-all-cell-list">
                     {dayBlocks.length === 0 ? (
                       <span className="week-all-empty muted mini">—</span>
                     ) : (
@@ -374,9 +404,7 @@ export function InstructorWeekTimeline({
                             <span className="week-all-chip-time">
                               {minutesToLabel(b.startMin)}–{minutesToLabel(b.endMin)}
                             </span>
-                            <span
-                              className={`week-all-chip-title ${!b.label.trim() ? "timeline-block-title-placeholder" : ""}`}
-                            >
+                            <span className="week-all-chip-title">
                               {b.label.trim() || "—"}
                             </span>
                             <span className="week-all-chip-course">
@@ -390,6 +418,118 @@ export function InstructorWeekTimeline({
                 );
               })}
             </div>
+          </div>
+        </div>
+      ) : mode === "all" || mode === "multi" ? (
+        <div className="week-all-grid-scroll">
+          <div className="week-all-grid">
+            <div className="week-all-corner" />
+            {FLIGHT_DAY_LABELS.map((label) => (
+              <div key={label} className="week-all-day-head">
+                {label.slice(0, 3)}
+              </div>
+            ))}
+            {(allGridFilter === "all" || allGridFilter === "noStudent") && (
+              <div className="week-all-row">
+                <div className="week-all-ins-name week-all-ins-unassigned">
+                  Unassigned
+                  <div className="muted mini">No student</div>
+                </div>
+                {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
+                  const dayBlocks = noStudentByDay[day] ?? [];
+                  return (
+                    <div key={`ns-${day}`} className="week-all-cell week-all-cell-list">
+                      {dayBlocks.length === 0 ? (
+                        <span className="week-all-empty muted mini">—</span>
+                      ) : (
+                        dayBlocks.map((b) => {
+                          const ci = courses.findIndex((c) => c.id === b.courseId);
+                          const course = courses[ci];
+                          const bg = blockGradientFromHex(
+                            courseColorOrDefault(course, Math.max(0, ci)),
+                          );
+                          const insId = assignmentByBlock.get(b.id) ?? null;
+                          const insName =
+                            insId === null
+                              ? null
+                              : instructors.find((i) => i.id === insId)?.name ?? "—";
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              className={`week-all-chip ${insId ? "" : "timeline-block-unassigned"}`}
+                              style={{ background: bg, opacity: 0.55 }}
+                              onClick={() => onBlockClick(b.id)}
+                            >
+                              <span className="week-all-chip-time">
+                                {minutesToLabel(b.startMin)}–{minutesToLabel(b.endMin)}
+                              </span>
+                              <span className="week-all-chip-title timeline-block-title-placeholder">
+                                — (no student)
+                              </span>
+                              <span className="week-all-chip-course">
+                                {courseName(b.courseId, courses)}
+                              </span>
+                              {insName && (
+                                <span className="muted mini" style={{ marginTop: "0.1rem" }}>
+                                  {insName}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {(allGridFilter === "all" || allGridFilter === "available") && (
+              <div className="week-all-row">
+                <div className="week-all-ins-name week-all-ins-unassigned">
+                  Available
+                  <div className="muted mini">Needs instructor</div>
+                </div>
+                {([0, 1, 2, 3, 4, 5] as FlightDayOfWeek[]).map((day) => {
+                  const dayBlocks = availableByDay[day] ?? [];
+                  return (
+                    <div key={`av-${day}`} className="week-all-cell week-all-cell-list">
+                      {dayBlocks.length === 0 ? (
+                        <span className="week-all-empty muted mini">—</span>
+                      ) : (
+                        dayBlocks.map((b) => {
+                          const ci = courses.findIndex((c) => c.id === b.courseId);
+                          const course = courses[ci];
+                          const bg = blockGradientFromHex(
+                            courseColorOrDefault(course, Math.max(0, ci)),
+                          );
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              className="week-all-chip timeline-block-unassigned"
+                              style={{ background: bg }}
+                              onClick={() => onBlockClick(b.id)}
+                            >
+                              <span className="week-all-chip-time">
+                                {minutesToLabel(b.startMin)}–{minutesToLabel(b.endMin)}
+                              </span>
+                              <span className="week-all-chip-title">
+                                {b.label.trim() || "—"}
+                              </span>
+                              <span className="week-all-chip-course">
+                                {courseName(b.courseId, courses)}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {(mode === "multi"
               ? instructors.filter((i) => multiIds.includes(i.id))
               : instructors
@@ -449,12 +589,12 @@ export function InstructorWeekTimeline({
 
       <p className="hint" style={{ marginTop: "0.5rem", marginBottom: 0 }}>
         {mode === "single"
-          ? "Showing this instructor’s blocks plus any unassigned blocks (grayed)."
+          ? "Showing this instructor’s blocks plus Available blocks (named, no instructor)."
           : mode === "unassigned"
-            ? "Showing only unassigned blocks."
+            ? "Showing Available blocks only (named, no instructor)."
             : mode === "multi"
-              ? "Multiple instructors: rows for each selected instructor (plus an Unassigned row)."
-            : "All instructors at once: each cell is a compact list of blocks (height fits content). Unassigned blocks are in the first row."}
+              ? "Multiple instructors: rows for each selected instructor, plus Unassigned (no student) and Available (needs instructor)."
+              : "All instructors: rows for every instructor, plus Unassigned (no student) and Available (needs instructor)."}
       </p>
     </div>
   );

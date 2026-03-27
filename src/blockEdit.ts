@@ -67,21 +67,18 @@ export function applyBlockEdit(
     prev.assignments,
   );
 
-  const isNamed = nextBlock.label.trim() !== "";
-  const nextInstructorId = isNamed ? edit.instructorId : null;
-
   nextAssignments = nextAssignments.map((a) =>
     occIdsForBase.includes(a.blockId)
-      ? { ...a, instructorId: nextInstructorId }
+      ? { ...a, instructorId: edit.instructorId }
       : a,
   );
 
-  if (nextInstructorId) {
-    const ins = prev.instructors.find((i) => i.id === nextInstructorId);
+  if (edit.instructorId) {
+    const ins = prev.instructors.find((i) => i.id === edit.instructorId);
     if (
       !ins ||
       !ins.qualifiedCourseIds.includes(nextBlock.courseId) ||
-      nextBlock.blockedInstructorIds.includes(nextInstructorId)
+      nextBlock.blockedInstructorIds.includes(edit.instructorId)
     ) {
       nextAssignments = nextAssignments.map((a) =>
         occIdsForBase.includes(a.blockId)
@@ -91,11 +88,11 @@ export function applyBlockEdit(
     }
   }
 
-  if (nextInstructorId) {
+  if (edit.instructorId) {
     for (const occ of allOcc.filter((o) => o.baseBlockId === baseId)) {
       const err = validateBlockAssignment(
         occ,
-        nextInstructorId,
+        edit.instructorId,
         prev.instructors,
         allOcc,
         nextAssignments,
