@@ -987,7 +987,12 @@ function ScheduleTab({
     });
   }, [state.instructors]);
 
-  const { total: slotCount, assigned: assignedCount, unassigned: unassignedCount } =
+  const {
+    total: slotCount,
+    assigned: assignedCount,
+    available: availableCount,
+    unassigned: unassignedCount,
+  } =
     baseBlockAssignmentSummary(state.blocks, rowsForManual);
 
   return (
@@ -1065,6 +1070,11 @@ function ScheduleTab({
           <span className="badge ok">
             Assigned {assignedCount} / {slotCount}
           </span>
+          {availableCount > 0 && (
+            <span className="badge">
+              {availableCount} available
+            </span>
+          )}
           {unassignedCount > 0 && (
             <span className="badge bad">{unassignedCount} unassigned</span>
           )}

@@ -21,7 +21,7 @@ function labelForOccurrenceSide(
   instructors: Instructor[],
 ): string {
   if (vals.length === 0) return "Unassigned";
-  const first = vals[0];
+  const first = vals[0] ?? null;
   if (vals.every((v) => v === first)) {
     return instructorLabel(first, instructors);
   }
@@ -39,9 +39,11 @@ function describeBaseBlock(base: FlightBlock, courses: Course[]): string {
 export type BaseBlockAssignmentSummary = {
   /** Number of flight blocks (Setup rows), not calendar occurrences */
   total: number;
-  /** Base blocks where every occurrence has the same non-null instructor */
+  /** Named base blocks where every occurrence has the same non-null instructor */
   assigned: number;
-  /** Base blocks that are not fully / consistently assigned */
+  /** Named base blocks with no instructor yet (available to assign) */
+  available: number;
+  /** Blocks with no student name (label blank) */
   unassigned: number;
 };
 
@@ -54,16 +56,24 @@ export function baseBlockAssignmentSummary(
 ): BaseBlockAssignmentSummary {
   const rowById = new Map(rows.map((r) => [r.blockId, r.instructorId] as const));
   let assigned = 0;
+  let available = 0;
+  let unassigned = 0;
   for (const b of blocks) {
+    const named = b.label.trim() !== "";
+    if (!named) {
+      unassigned++;
+      continue;
+    }
     const vals = b.days.map((d) => rowById.get(occurrenceId(b.id, d)) ?? null);
     const ok =
       vals.length > 0 &&
       vals.every((v) => v !== null) &&
       vals.every((v) => v === vals[0]);
     if (ok) assigned++;
+    else available++;
   }
   const total = blocks.length;
-  return { total, assigned, unassigned: total - assigned };
+  return { total, assigned, available, unassigned };
 }
 
 /**
@@ -101,9 +111,7 @@ export function summarizeAssignmentChanges(
     const occIds = base.days.map((d) => occurrenceId(base.id, d));
     const beforeVals = occIds.map((oid) => prevMap.get(oid) ?? null);
     const afterVals = occIds.map((oid) => nextMap.get(oid) ?? null);
-    const changed = occIds.some(
-      (oid, i) => beforeVals[i] !== afterVals[i],
-    );
+    const changed = occIds.some((_, i) => beforeVals[i] !== afterVals[i]);
     if (!changed) continue;
 
     const desc = describeBaseBlock(base, courses);
