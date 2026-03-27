@@ -33,6 +33,7 @@ import { DayTimeline } from "./DayTimeline";
 import {
   ALL_INSTRUCTORS_OPTION,
   InstructorWeekTimeline,
+  MULTI_OPTION,
   UNASSIGNED_OPTION,
 } from "./InstructorWeekTimeline";
 import { UnavailabilityWeekEditor } from "./UnavailabilityWeekEditor";
@@ -973,7 +974,13 @@ function ScheduleTab({
     }
     setWeekInstructorId((prev) => {
       if (!prev) return ALL_INSTRUCTORS_OPTION;
-      if (prev === ALL_INSTRUCTORS_OPTION || prev === UNASSIGNED_OPTION) return prev;
+      if (
+        prev === ALL_INSTRUCTORS_OPTION ||
+        prev === UNASSIGNED_OPTION ||
+        prev === MULTI_OPTION
+      ) {
+        return prev;
+      }
       return state.instructors.some((i) => i.id === prev)
         ? prev
         : ALL_INSTRUCTORS_OPTION;
