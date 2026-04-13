@@ -35,6 +35,9 @@ export function validateBlockAssignment(
   if (block.blockedInstructorIds.includes(instructorId)) {
     return "That instructor is excluded from this block.";
   }
+  if (block.lockedInstructorId && block.lockedInstructorId !== instructorId) {
+    return "This block is locked to a different instructor.";
+  }
 
   const unavail = ins.unavailabilityByDay[block.day];
   if (

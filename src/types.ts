@@ -86,6 +86,10 @@ export type FlightBlock = {
    * Instructors who must not be assigned to this block (hard constraint).
    */
   blockedInstructorIds: string[];
+  /**
+   * Optional hard lock: if set, only this instructor may be assigned.
+   */
+  lockedInstructorId?: string | null;
 };
 
 /** One weekly slot (base block × day); solver and assignments use this shape. */
@@ -98,6 +102,7 @@ export type FlightBlockOccurrence = {
   endMin: number;
   label: string;
   blockedInstructorIds: string[];
+  lockedInstructorId?: string | null;
 };
 
 export type Assignment = {

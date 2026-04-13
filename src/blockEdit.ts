@@ -17,6 +17,7 @@ export type BlockEditPayload = {
   endMin: number;
   instructorId: string | null;
   blockedInstructorIds: string[];
+  lockedInstructorId: string | null;
 };
 
 export function applyBlockEdit(
@@ -51,6 +52,7 @@ export function applyBlockEdit(
     startMin,
     endMin,
     blockedInstructorIds: edit.blockedInstructorIds,
+    lockedInstructorId: edit.lockedInstructorId,
   };
 
   const nextBlocks = prev.blocks.map((b) =>
@@ -78,7 +80,9 @@ export function applyBlockEdit(
     if (
       !ins ||
       !ins.qualifiedCourseIds.includes(nextBlock.courseId) ||
-      nextBlock.blockedInstructorIds.includes(edit.instructorId)
+      nextBlock.blockedInstructorIds.includes(edit.instructorId) ||
+      (nextBlock.lockedInstructorId !== null &&
+        nextBlock.lockedInstructorId !== edit.instructorId)
     ) {
       nextAssignments = nextAssignments.map((a) =>
         occIdsForBase.includes(a.blockId)

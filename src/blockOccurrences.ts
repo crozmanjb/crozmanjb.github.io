@@ -35,6 +35,7 @@ export function expandBlocksToOccurrences(
         endMin: b.endMin,
         label: b.label,
         blockedInstructorIds: b.blockedInstructorIds,
+        lockedInstructorId: b.lockedInstructorId ?? null,
       });
     }
   }

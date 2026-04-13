@@ -38,6 +38,9 @@ export function BlockEditModal({
   const [endText, setEndText] = useState(minutesToLabel(baseBlock.endMin));
   const [ins, setIns] = useState<string | null>(instructorId);
   const [blockedIds, setBlockedIds] = useState<string[]>(baseBlock.blockedInstructorIds);
+  const [lockedInstructorId, setLockedInstructorId] = useState<string | null>(
+    baseBlock.lockedInstructorId ?? null,
+  );
 
   useEffect(() => {
     setLabel(baseBlock.label);
@@ -50,6 +53,7 @@ export function BlockEditModal({
     setEndText(minutesToLabel(baseBlock.endMin));
     setIns(instructorId);
     setBlockedIds(baseBlock.blockedInstructorIds);
+    setLockedInstructorId(baseBlock.lockedInstructorId ?? null);
   }, [baseBlock, instructorId]);
 
 
@@ -71,12 +75,28 @@ export function BlockEditModal({
       ),
     [instructors, courseId, blockedSet],
   );
+  const effectiveAssignableInstructors = useMemo(
+    () =>
+      lockedInstructorId
+        ? assignableInstructors.filter((i) => i.id === lockedInstructorId)
+        : assignableInstructors,
+    [assignableInstructors, lockedInstructorId],
+  );
 
   useEffect(() => {
-    if (ins !== null && !assignableInstructors.some((i) => i.id === ins)) {
+    if (ins !== null && !effectiveAssignableInstructors.some((i) => i.id === ins)) {
       setIns(null);
     }
-  }, [assignableInstructors, ins]);
+  }, [effectiveAssignableInstructors, ins]);
+
+  useEffect(() => {
+    if (
+      lockedInstructorId !== null &&
+      !assignableInstructors.some((i) => i.id === lockedInstructorId)
+    ) {
+      setLockedInstructorId(null);
+    }
+  }, [assignableInstructors, lockedInstructorId]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -91,6 +111,7 @@ export function BlockEditModal({
       endMin: Math.max(1, Math.min(24 * 60, endMin)),
       instructorId: ins,
       blockedInstructorIds: blockedIds,
+      lockedInstructorId,
     });
   };
 
@@ -113,6 +134,9 @@ export function BlockEditModal({
     });
     if (ins === instructorIdToggle && checked) {
       setIns(null);
+    }
+    if (lockedInstructorId === instructorIdToggle && checked) {
+      setLockedInstructorId(null);
     }
   };
 
@@ -157,6 +181,13 @@ export function BlockEditModal({
                   (i) => i.id === ins && i.qualifiedCourseIds.includes(next),
                 );
                 if (!stillOk) setIns(null);
+                const lockStillOk = instructors.find(
+                  (i) =>
+                    i.id === lockedInstructorId &&
+                    i.qualifiedCourseIds.includes(next) &&
+                    !blockedSet.has(i.id),
+                );
+                if (!lockStillOk) setLockedInstructorId(null);
               }}
             >
               {courses.map((c) => (
@@ -267,6 +298,28 @@ export function BlockEditModal({
             </div>
           </div>
           <div>
+            <label htmlFor="be-lock-ins">Lock to instructor (optional)</label>
+            <p className="hint" style={{ marginTop: 0 }}>
+              When set, only this instructor can be assigned to this student.
+            </p>
+            <select
+              id="be-lock-ins"
+              value={lockedInstructorId ?? ""}
+              onChange={(e) =>
+                setLockedInstructorId(
+                  e.target.value === "" ? null : e.target.value,
+                )
+              }
+            >
+              <option value="">— No lock —</option>
+              {assignableInstructors.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label htmlFor="be-ins">Instructor</label>
             <p className="hint" style={{ marginTop: 0 }}>
               Unnamed blocks won’t be assigned by the scheduler, but you can still
@@ -281,7 +334,7 @@ export function BlockEditModal({
               }
             >
               <option value="">— Unassigned —</option>
-              {assignableInstructors.map((i) => (
+              {effectiveAssignableInstructors.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name}
                 </option>

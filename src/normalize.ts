@@ -160,6 +160,7 @@ export type FlightBlockLike = Partial<FlightBlock> & {
   startMin: number;
   label: string;
   blockedInstructorIds?: string[];
+  lockedInstructorId?: string | null;
 };
 
 function normalizeDays(raw: FlightBlockLike): FlightDayOfWeek[] {
@@ -192,6 +193,12 @@ export function normalizeBlock(
   const blocked = Array.isArray(raw.blockedInstructorIds)
     ? raw.blockedInstructorIds.filter((id) => validInstructorIds.has(id))
     : [];
+  const lockedInstructorId =
+    typeof raw.lockedInstructorId === "string" &&
+    validInstructorIds.has(raw.lockedInstructorId) &&
+    !blocked.includes(raw.lockedInstructorId)
+      ? raw.lockedInstructorId
+      : null;
   const label = typeof raw.label === "string" ? raw.label : "";
   return {
     id: raw.id,
@@ -201,6 +208,7 @@ export function normalizeBlock(
     startMin,
     endMin,
     blockedInstructorIds: blocked,
+    lockedInstructorId,
   };
 }
 

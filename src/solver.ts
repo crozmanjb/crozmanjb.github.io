@@ -82,6 +82,7 @@ function instructorEligibleForBlock(
   block: FlightBlockOccurrence,
   ins: Instructor,
 ): boolean {
+  if (block.lockedInstructorId && block.lockedInstructorId !== ins.id) return false;
   if (!ins.qualifiedCourseIds.includes(block.courseId)) return false;
   if (block.blockedInstructorIds.includes(ins.id)) return false;
   if (!blockAllowedByUnavailability(block, ins)) return false;
@@ -532,10 +533,22 @@ export function solveSchedule(
           `No instructor is qualified for ${describeGroup(occs, courses)}.`,
         );
       } else if (
+        first.lockedInstructorId &&
+        !qualified.some((i) => i.id === first.lockedInstructorId)
+      ) {
+        warnings.push(
+          `Locked instructor is not qualified for ${describeGroup(occs, courses)}.`,
+        );
+      } else if (
         qualified.every((i) => first.blockedInstructorIds.includes(i.id))
       ) {
         warnings.push(
           `All qualified instructors are excluded from ${describeGroup(occs, courses)}.`,
+        );
+      } else if (first.lockedInstructorId) {
+        const locked = instructors.find((i) => i.id === first.lockedInstructorId);
+        warnings.push(
+          `Could not place ${describeGroup(occs, courses)} — locked instructor ${locked?.name ?? "is unavailable"} cannot cover every occurrence.`,
         );
       } else {
         warnings.push(

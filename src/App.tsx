@@ -252,6 +252,7 @@ export default function App() {
               endMin: payload.endMin,
               label: "",
               blockedInstructorIds: [],
+              lockedInstructorId: null,
             };
           },
         );
@@ -624,6 +625,16 @@ function InstructorsPanel({
                     setSetup((s) => ({
                       ...s,
                       instructors: s.instructors.filter((x) => x.id !== ins.id),
+                      blocks: s.blocks.map((b) => ({
+                        ...b,
+                        blockedInstructorIds: b.blockedInstructorIds.filter(
+                          (id) => id !== ins.id,
+                        ),
+                        lockedInstructorId:
+                          b.lockedInstructorId === ins.id
+                            ? null
+                            : (b.lockedInstructorId ?? null),
+                      })),
                     }))
                   }
                 >
