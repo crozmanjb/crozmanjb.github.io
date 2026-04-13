@@ -272,19 +272,21 @@ export default function App() {
     [setSetup],
   );
 
-  const unassignAllBlocks = useCallback(() => {
-    const clearLockedStudents = confirm(
-      "Clear locked students too?\n\nOK = clear locks\nCancel = keep locks",
-    );
+  const unassignAllBlocks = useCallback((clearLockedStudents: boolean) => {
     setState((prev) => ({
       ...prev,
       blocks: clearLockedStudents
         ? prev.blocks.map((b) => ({ ...b, lockedInstructorId: null }))
         : prev.blocks,
-      assignments: ensureAssignmentsForBlocks(prev.blocks, prev.assignments).map((a) => ({
-        ...a,
-        instructorId: null,
-      })),
+      assignments: (() => {
+        const blockById = new Map(prev.blocks.map((b) => [b.id, b] as const));
+        return ensureAssignmentsForBlocks(prev.blocks, prev.assignments).map((a) => {
+          if (clearLockedStudents) return { ...a, instructorId: null };
+          const baseId = baseBlockIdFromAnyId(a.blockId);
+          const block = blockById.get(baseId);
+          return { ...a, instructorId: block?.lockedInstructorId ?? null };
+        });
+      })(),
       scheduleStale: false,
       solveWarnings: null,
       undoSchedule: null,
@@ -931,7 +933,7 @@ function ScheduleTab({
   state: AppState;
   addFlightBlocks: (payload: AddFlightBlocksPayload) => void;
   deleteFlightBlock: (baseId: string) => void;
-  unassignAllBlocks: () => void;
+  unassignAllBlocks: (clearLockedStudents: boolean) => void;
   clearInstructorSchedule: (instructorId: string) => void;
   runIncrementalSolve: () => void;
   runFullSolve: () => void;
@@ -947,6 +949,7 @@ function ScheduleTab({
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [weekInstructorId, setWeekInstructorId] = useState(ALL_INSTRUCTORS_OPTION);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
+  const [showUnassignAllDialog, setShowUnassignAllDialog] = useState(false);
 
   const rowsForManual = ensureAssignmentsForBlocks(
     state.blocks,
@@ -1078,11 +1081,59 @@ function ScheduleTab({
             <button type="button" onClick={runFullSolve}>
               Full re-solve
             </button>
-            <button type="button" className="ghost" onClick={unassignAllBlocks}>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setShowUnassignAllDialog(true)}
+            >
               Unassign all
             </button>
           </div>
         </div>
+        {showUnassignAllDialog && (
+          <div className="modal-backdrop" role="presentation">
+            <div
+              className="modal-panel"
+              role="dialog"
+              aria-labelledby="unassign-all-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="unassign-all-title">Unassign all students?</h2>
+              <p className="muted" style={{ marginBottom: "0.75rem" }}>
+                Choose whether to keep locked students assigned.
+              </p>
+              <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => {
+                    unassignAllBlocks(false);
+                    setShowUnassignAllDialog(false);
+                  }}
+                >
+                  Keep locks and keep those assignments
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    unassignAllBlocks(true);
+                    setShowUnassignAllDialog(false);
+                  }}
+                >
+                  Clear locks and unassign everyone
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setShowUnassignAllDialog(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <p className="row" style={{ gap: "0.75rem" }}>
           <span className="badge ok">
             Assigned {assignedCount} / {slotCount}
