@@ -97,6 +97,14 @@ export function BlockEditModal({
       setLockedInstructorId(null);
     }
   }, [assignableInstructors, lockedInstructorId]);
+  useEffect(() => {
+    if (ins === null && lockedInstructorId !== null) {
+      setLockedInstructorId(null);
+    }
+    if (ins !== null && lockedInstructorId !== null && ins !== lockedInstructorId) {
+      setLockedInstructorId(null);
+    }
+  }, [ins, lockedInstructorId]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -298,29 +306,30 @@ export function BlockEditModal({
             </div>
           </div>
           <div>
-            <label htmlFor="be-lock-ins">Lock to instructor (optional)</label>
-            <p className="hint" style={{ marginTop: 0 }}>
-              When set, only this instructor can be assigned to this student.
-            </p>
-            <select
-              id="be-lock-ins"
-              value={lockedInstructorId ?? ""}
-              onChange={(e) =>
-                setLockedInstructorId(
-                  e.target.value === "" ? null : e.target.value,
-                )
-              }
-            >
-              <option value="">— No lock —</option>
-              {assignableInstructors.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="be-ins">Instructor</label>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <label htmlFor="be-ins">Instructor</label>
+              <button
+                type="button"
+                className="ghost mini"
+                disabled={ins === null}
+                title={
+                  ins === null
+                    ? "Assign an instructor first to lock"
+                    : lockedInstructorId === ins
+                      ? "Unlock this student from the assigned instructor"
+                      : "Lock this student to the assigned instructor"
+                }
+                onClick={() =>
+                  setLockedInstructorId((prev) =>
+                    ins === null ? null : prev === ins ? null : ins,
+                  )
+                }
+              >
+                {lockedInstructorId !== null && lockedInstructorId === ins
+                  ? "🔒 Locked"
+                  : "🔓 Unlocked"}
+              </button>
+            </div>
             <p className="hint" style={{ marginTop: 0 }}>
               Unnamed blocks won’t be assigned by the scheduler, but you can still
               assign an instructor manually. If you add a student name, the block
