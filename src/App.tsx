@@ -273,8 +273,14 @@ export default function App() {
   );
 
   const unassignAllBlocks = useCallback(() => {
+    const clearLockedStudents = confirm(
+      "Clear locked students too?\n\nOK = clear locks\nCancel = keep locks",
+    );
     setState((prev) => ({
       ...prev,
+      blocks: clearLockedStudents
+        ? prev.blocks.map((b) => ({ ...b, lockedInstructorId: null }))
+        : prev.blocks,
       assignments: ensureAssignmentsForBlocks(prev.blocks, prev.assignments).map((a) => ({
         ...a,
         instructorId: null,
